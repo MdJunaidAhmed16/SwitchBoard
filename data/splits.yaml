@@ -1,0 +1,12 @@
+# Dataset-level split (04-datasets). Each benchmark belongs to exactly one role.
+# Never split by row: a row split lets the router learn which benchmark a prompt came from.
+train:
+  - gsm8k
+  - mmlu
+  - mbpp
+val:
+  - arc_challenge
+test:
+  - math
+  - humaneval
+  - bbh
