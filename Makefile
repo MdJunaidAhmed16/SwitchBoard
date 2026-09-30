@@ -20,7 +20,7 @@ LOCAL_MODEL    ?= $(shell $(RUN) python -c "from switchboard.config import get_s
 LOCAL_REVISION ?= $(shell $(RUN) python -c "from switchboard.config import get_settings as g; print(g().local_model_revision)")
 
 .PHONY: help install lint format typecheck test test-docker test-integration check \
-        sandbox-pull vllm labels labels-summary review-sample
+        sandbox-pull grader-selfcheck vllm labels labels-summary review-sample
 
 help:  ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -57,6 +57,9 @@ check: lint typecheck test  ## Everything CI runs on a pull request
 
 sandbox-pull:  ## Pull the digest-pinned sandbox image used by the code graders
 	docker pull $$($(RUN) python -c "from switchboard.config import get_settings as g; print(g().sandbox_image)")
+
+grader-selfcheck:  ## Oracle answers for every real item must grade True (code runs in Docker)
+	$(RUN) python -m switchboard.labeling.selfcheck --bench all
 
 vllm:  ## Serve the local model with vLLM on the GPU (foreground)
 	$(UV) tool run --python 3.11 --from 'vllm==$(VLLM_VERSION)' vllm serve $(LOCAL_MODEL) \
