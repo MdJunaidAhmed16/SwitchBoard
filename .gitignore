@@ -1,0 +1,52 @@
+# --- Private planning docs (kept local, not published) ---
+project-docs/
+
+# --- Secrets (see 09-security) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+service-account*.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Data: raw benchmarks and generation cache are regenerable by script ---
+data/raw/
+data/cache/
+sandbox/
+
+# --- Model artefacts (large, regenerable; checkpoints go to GCS) ---
+checkpoints/
+*.onnx
+*.pt
+*.safetensors
+
+# --- Terraform state never committed ---
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# --- Editor / OS / tooling ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+.claude/
+*.log

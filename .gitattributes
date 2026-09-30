@@ -1,0 +1,5 @@
+# Normalise to LF everywhere: scripts run inside WSL/Linux containers.
+* text=auto eol=lf
+*.parquet binary
+*.png binary
+*.onnx binary

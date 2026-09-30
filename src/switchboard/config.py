@@ -1,0 +1,68 @@
+"""Single settings object for the whole project.
+
+Everything configurable is read here, from environment variables prefixed ``SWITCHBOARD_`` (or a
+local ``.env``). No other module reads ``os.environ``.
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="SWITCHBOARD_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    # --- Local model -------------------------------------------------------------------------
+    # Every label depends on this checkpoint. Changing either field invalidates data/labels/.
+    local_model_id: str = "Qwen/Qwen2.5-1.5B-Instruct"
+    local_model_revision: str = "989aa7980e4cf806f80c7fef2b1adb7bc71aa306"
+    local_base_url: str = "http://localhost:8001/v1"
+
+    # --- Label generation --------------------------------------------------------------------
+    label_concurrency: int = Field(default=32, ge=1)
+    request_timeout_s: float = Field(default=300.0, gt=0)
+    max_retries: int = Field(default=4, ge=0)
+
+    # --- Code-execution sandbox (see 00-local-setup, "Code execution safety") ----------------
+    # Pinned by digest, not tag: a base image that changes under us changes code-grader results.
+    sandbox_image: str = (
+        "python:3.11-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e"
+    )
+    sandbox_timeout_s: int = Field(default=10, ge=1)
+    sandbox_memory: str = "512m"
+    sandbox_cpus: str = "1"
+    sandbox_workers: int = Field(default=4, ge=1)
+
+    # --- Paths -------------------------------------------------------------------------------
+    data_dir: Path = REPO_ROOT / "data"
+    results_dir: Path = REPO_ROOT / "results"
+    reports_dir: Path = REPO_ROOT / "reports"
+
+    @property
+    def raw_dir(self) -> Path:
+        return self.data_dir / "raw"
+
+    @property
+    def cache_path(self) -> Path:
+        return self.data_dir / "cache" / "generations.sqlite"
+
+    @property
+    def labels_dir(self) -> Path:
+        return self.data_dir / "labels"
+
+    @property
+    def splits_path(self) -> Path:
+        return self.data_dir / "splits.yaml"
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()
