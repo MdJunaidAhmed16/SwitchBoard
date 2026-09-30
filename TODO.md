@@ -23,34 +23,38 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 ## Phase 1 — Labels  → `reports/R1-labels.md`
 
 ### Code
-- [ ] Benchmark registry: pinned HF revisions, fixed seeded sampling, prompt templates
-- [ ] Router input (`router_text`) kept separate from the generation prompt (no format-instruction leakage)
-- [ ] `data/splits.yaml` — train / val / test at dataset level
-- [ ] Graders (pure functions, `(prediction, reference) -> bool`)
-  - [ ] GSM8K — numeric exact match with normalisation
-  - [ ] MATH — `\boxed{}` extraction + LaTeX normalisation + numeric equivalence
-  - [ ] MMLU / ARC — multiple-choice letter extraction
-  - [ ] BBH — exact match, MC-letter and numeric aware
-  - [ ] HumanEval / MBPP — unit-test execution in a sandbox
-- [ ] Sandbox: Docker, `--network none`, memory/CPU/pids caps, non-root, read-only FS, timeout; image pinned by digest
-- [ ] Generation cache (SQLite) keyed `(model_id, prompt_hash, decode_params_hash)` — resumable, never regenerates
-- [ ] vLLM client (OpenAI-compatible chat endpoint), bounded concurrency, retry with backoff
-- [ ] `make labels BENCH=<name>` → `data/labels/<model>.parquet` (+ `.meta.json` with versions, decode params, wall-clock)
-- [ ] Label summary → `results/labels-summary.json` + markdown table (accuracy/base rate/flags from data, never typed)
-- [ ] Review sampler → `reports/review/R1-sample.md` (30 random triples)
+- [x] Benchmark registry: pinned HF revisions, fixed seeded sampling, prompt templates
+- [x] Router input (`router_text`) kept separate from the generation prompt (no format-instruction leakage)
+- [x] `data/splits.yaml` — train / val / test at dataset level
+- [x] Graders (pure functions, `(prediction, reference) -> bool`)
+  - [x] GSM8K — numeric exact match with normalisation
+  - [x] MATH — `\boxed{}` extraction + LaTeX normalisation + numeric equivalence
+  - [x] MMLU / ARC — multiple-choice letter extraction
+  - [x] BBH — exact match, MC-letter and numeric aware
+  - [x] HumanEval / MBPP — unit-test execution in a sandbox
+- [x] Sandbox: Docker, `--network none`, memory/CPU/pids caps, non-root, read-only FS, timeout; image pinned by digest
+- [x] Generation cache (SQLite) keyed `(model_id, prompt_hash, decode_params_hash)` — resumable, never regenerates
+- [x] vLLM client (OpenAI-compatible chat endpoint), bounded concurrency, retry with backoff
+- [x] `make labels BENCH=<name>` → `data/labels/<model>.parquet` (+ `.meta.json` with versions, decode params, wall-clock)
+- [x] Label summary → `results/labels-summary.json` + markdown table (accuracy/base rate/flags from data, never typed)
+- [x] Review sampler → `reports/review/R1-sample.md` (30 random triples)
+- [x] Grader self-check over every real item (`make grader-selfcheck`) — 0 failures on 9,292 non-code items; 1,138 canonical code solutions pass assembly
 
 ### Tests (13-testing-and-reports, Phase 1)
-- [ ] Grader fixtures ≥ 10 per grader incl. adversarial (extra prose, wrong format, empty, refusal)
-- [ ] Grader normalisation: `"42"`, `"42.0"`, `" 42 "`, `"The answer is 42"` agree
-- [ ] Sandbox isolation (command has no network + timeout; live checks when Docker present)
-- [ ] Cache key stability
-- [ ] Label schema (required columns, no nulls)
-- [ ] Determinism (integration, needs a live vLLM server) — written, owner to run
-- [ ] Code-grader live execution in Docker — written, owner to run once Docker is installed in WSL
+- [x] Grader fixtures ≥ 10 per grader incl. adversarial (extra prose, wrong format, empty, refusal)
+- [x] Grader normalisation: `"42"`, `"42.0"`, `" 42 "`, `"The answer is 42"` agree
+- [x] Sandbox isolation (command has no network + timeout; live checks when Docker present)
+- [x] Cache key stability
+- [x] Label schema (required columns, no nulls)
+- [x] Pipeline end-to-end against a fake vLLM (resume never regenerates, merge per benchmark)
+- [~] Determinism (integration, needs a live vLLM server) — written, owner to run `make test-integration`
+- [~] Code-grader live execution in Docker — written, owner to run `make test-docker`
 
 ### Run (owner, on the GPU)
-- [ ] Install Docker Engine + NVIDIA Container Toolkit in WSL
-- [ ] Start vLLM with the chosen local model
+- [ ] Move the repo into the WSL filesystem (not OneDrive / `/mnt/c`), `make install`
+- [ ] Install Docker Engine in WSL; `make sandbox-pull`; `make test-docker`; `make grader-selfcheck`
+- [ ] Confirm the local model; start vLLM (`make vllm`); `make test-integration`
+- [ ] Smoke run: `uv run python -m switchboard.labeling.generate --bench gsm8k --limit 20`
 - [ ] `make labels` for all 7 benchmarks
 - [ ] `make labels-summary`
 - [ ] **Gate:** manual review of 30 samples; ≤ 1 mislabel, else fix grader and re-grade
