@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     local_model_revision: str = "989aa7980e4cf806f80c7fef2b1adb7bc71aa306"
     local_base_url: str = "http://localhost:8001/v1"
 
+    # --- Frontier model ----------------------------------------------------------------------
+    # The cost table reads these, so it cannot drift from what was actually called. Prices are
+    # Anthropic first-party API rates in USD per 1M tokens (checked 2026-10-02).
+    frontier_model_id: str = "claude-opus-5-5"
+    frontier_price_in_per_mtok: float = 4.00
+    frontier_price_out_per_mtok: float = 20.00
+
     # --- Label generation --------------------------------------------------------------------
     label_concurrency: int = Field(default=32, ge=1)
     request_timeout_s: float = Field(default=300.0, gt=0)
