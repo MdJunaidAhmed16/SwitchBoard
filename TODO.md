@@ -57,7 +57,16 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 - [x] Confirm the local model (Qwen2.5-1.5B-Instruct)
 - [x] Start vLLM (`make vllm`, v0.30.0); `make test-integration` (3 passed)
 - [x] Smoke run: `make labels BENCH=gsm8k LIMIT=20` and `BENCH=mbpp LIMIT=10` — 0 failed; all wrong labels inspected and genuinely wrong
-- [ ] `make labels` for all 7 benchmarks
+- [~] `make labels` for all 7 benchmarks — **paused 2026-10-02**
+  - [x] gsm8k (3000) · [x] mmlu (3000) · [~] mbpp (973 / 974)
+  - [ ] arc_challenge · [ ] math · [ ] humaneval · [ ] bbh
+  - **Open issue:** `mbpp-0493` prompt is 3,741 tokens; with 1,024 output tokens it exceeds vLLM's
+    4,096 context, so vLLM returns 400 and `make labels BENCH=mbpp` exits 1. Measured every prompt
+    with the model's own tokenizer + chat template: it is the **only** one of 10,430 over the
+    3,072-token prompt budget (next longest: 836, mmlu/math). Proposed fix (next session): check
+    prompt length before generating; items that cannot fit are recorded as `excluded:
+    prompt_exceeds_context` in meta + summary (not a failure, not a fabricated label). Alternative:
+    raise `--max-model-len` to 8192 and regenerate nothing else.
 - [ ] `make labels-summary`
 - [ ] **Gate:** manual review of 30 samples; ≤ 1 mislabel, else fix grader and re-grade
 - [ ] Write `reports/R1-labels.md` (truncation rate needs the Phase 2 encoder tokenizer)
