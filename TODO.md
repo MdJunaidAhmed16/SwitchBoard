@@ -47,7 +47,7 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 - [x] Cache key stability
 - [x] Label schema (required columns, no nulls)
 - [x] Pipeline end-to-end against a fake vLLM (resume never regenerates, merge per benchmark)
-- [~] Determinism (integration, needs a live vLLM server) — written, owner to run `make test-integration`
+- [x] Determinism (integration, live vLLM) — `make test-integration`, 3 passed
 - [x] Code-grader live execution in Docker — `make test-docker`, 6 passed
 
 ### Run (owner, on the GPU)
@@ -55,8 +55,8 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 - [x] Install Docker Engine in WSL; `make sandbox-pull`; `make test-docker` (6 passed)
 - [x] `make grader-selfcheck` with code tracks in Docker — 0 failures on all 7 benchmarks (10,430 items, ~6 min)
 - [x] Confirm the local model (Qwen2.5-1.5B-Instruct)
-- [ ] Start vLLM (`make vllm`); `make test-integration`
-- [ ] Smoke run: `uv run python -m switchboard.labeling.generate --bench gsm8k --limit 20`
+- [x] Start vLLM (`make vllm`, v0.30.0); `make test-integration` (3 passed)
+- [x] Smoke run: `make labels BENCH=gsm8k LIMIT=20` and `BENCH=mbpp LIMIT=10` — 0 failed; all wrong labels inspected and genuinely wrong
 - [ ] `make labels` for all 7 benchmarks
 - [ ] `make labels-summary`
 - [ ] **Gate:** manual review of 30 samples; ≤ 1 mislabel, else fix grader and re-grade
