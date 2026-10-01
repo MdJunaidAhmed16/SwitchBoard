@@ -48,12 +48,14 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 - [x] Label schema (required columns, no nulls)
 - [x] Pipeline end-to-end against a fake vLLM (resume never regenerates, merge per benchmark)
 - [~] Determinism (integration, needs a live vLLM server) — written, owner to run `make test-integration`
-- [~] Code-grader live execution in Docker — written, owner to run `make test-docker`
+- [x] Code-grader live execution in Docker — `make test-docker`, 6 passed
 
 ### Run (owner, on the GPU)
-- [ ] Move the repo into the WSL filesystem (not OneDrive / `/mnt/c`), `make install`
-- [ ] Install Docker Engine in WSL; `make sandbox-pull`; `make test-docker`; `make grader-selfcheck`
-- [ ] Confirm the local model; start vLLM (`make vllm`); `make test-integration`
+- [x] Move the repo into the WSL filesystem (`~/projects/switchboard`), `make install`
+- [x] Install Docker Engine in WSL; `make sandbox-pull`; `make test-docker` (6 passed)
+- [x] `make grader-selfcheck` with code tracks in Docker — 0 failures on all 7 benchmarks (10,430 items, ~6 min)
+- [x] Confirm the local model (Qwen2.5-1.5B-Instruct)
+- [ ] Start vLLM (`make vllm`); `make test-integration`
 - [ ] Smoke run: `uv run python -m switchboard.labeling.generate --bench gsm8k --limit 20`
 - [ ] `make labels` for all 7 benchmarks
 - [ ] `make labels-summary`
@@ -111,7 +113,7 @@ Decisions made while building, recorded here so they do not live only in chat.
 
 | Date | Decision | Why |
 | --- | --- | --- |
-| 2026-09-30 | Local model default `Qwen/Qwen2.5-1.5B-Instruct` @ `989aa79` (pending owner confirmation) | 8 GB 4060: a 3B bf16 model (~6.2 GB weights) leaves almost no KV cache; 1.5B is Apache-2.0 while Qwen2.5-3B uses a non-commercial research licence |
+| 2026-09-30 | Local model `Qwen/Qwen2.5-1.5B-Instruct` @ `989aa79` (confirmed by owner 2026-10-02) | 8 GB 4060: a 3B bf16 model (~6.2 GB weights) leaves almost no KV cache; 1.5B is Apache-2.0 while Qwen2.5-3B uses a non-commercial research licence |
 | 2026-09-30 | Validation benchmark: ARC-Challenge (test split) | Docs require validation on a held-out *benchmark*, but no val benchmark was named; ARC is public, MC-gradable, and not in train or test |
 | 2026-09-30 | MATH via `HuggingFaceH4/MATH-500` | The original `hendrycks/competition_math` repo was taken down; MATH-500 is the standard 500-problem subset with extracted answers |
 | 2026-09-30 | Router input is the task text only; answer-format instructions are appended only for generation | Format suffixes differ per track and would let the router learn provenance instead of difficulty |
@@ -119,8 +121,8 @@ Decisions made while building, recorded here so they do not live only in chat.
 | 2026-09-30 | Datasets fetched as pinned parquet/jsonl via `huggingface_hub`, not `datasets.load_dataset` | Exact revision pinning, fewer dependencies, no loader scripts |
 | 2026-09-30 | vLLM treated as an external server; not a project dependency | vLLM pins its own torch/CUDA; keeping it out of the project env avoids conflicts with training deps |
 | 2026-09-30 | Code sandbox: one throwaway container per program, program piped via stdin (no volume mount) | Nothing on the host filesystem is exposed to model-generated code |
+| 2026-10-02 | Frontier model: Claude Opus 5.5 (`claude-opus-5-5`), $4 / $20 per 1M input / output tokens, pinned in `config.py` | Owner chose Claude; Opus 5.5 is the current default Claude model. Thinking cannot be disabled on it and is billed as output, so cost uses the API's reported usage, never estimates. No sampling controls, so frontier answers are generated once and cached rather than assumed reproducible |
+| 2026-10-02 | Keep HumanEval at all 164 items as a test track | Owner decision. It is below the "several hundred rows" rule, so its per-benchmark figures are reported with confidence intervals, and the code track's test weight also comes from BBH/MATH alongside it. Revisit only if its interval is too wide to say anything |
 
 ## Open questions for the owner
-- Confirm the local model (1.5B default vs 3B / 3B-AWQ). Changing it later invalidates every label.
-- Frontier provider and model (needed for Phase 2 frontier answers + pricing table).
-- HumanEval has 164 items, below the "several hundred rows" rule in 04-datasets. Keep it as a test track anyway?
+- None open.
