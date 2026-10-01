@@ -7,6 +7,7 @@ SHELL := /bin/bash
 UV       ?= uv
 RUN      := $(UV) run
 BENCH    ?= all
+LIMIT    ?=
 SEED     ?= 0
 
 # vLLM runs as an external server in its own tool environment, so its pinned torch/CUDA never
@@ -71,8 +72,8 @@ vllm:  ## Serve the local model with vLLM on the GPU (foreground)
 	  --seed $(SEED) \
 	  --port $(VLLM_PORT)
 
-labels:  ## Generate + grade labels. BENCH=gsm8k|math|mmlu|arc_challenge|bbh|humaneval|mbpp|all
-	$(RUN) python -m switchboard.labeling.generate --bench $(BENCH) \
+labels:  ## Generate + grade labels. BENCH=<name>|all; LIMIT=N for a smoke run (first N items)
+	$(RUN) python -m switchboard.labeling.generate --bench $(BENCH) $(if $(LIMIT),--limit $(LIMIT)) \
 	  --vllm-gpu-util $(VLLM_GPU_UTIL) --vllm-max-len $(VLLM_MAX_LEN) --vllm-max-seqs $(VLLM_MAX_SEQS)
 
 labels-summary:  ## Per-benchmark accuracy / base rate → results/labels-summary.json + markdown
