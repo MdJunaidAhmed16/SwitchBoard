@@ -75,7 +75,7 @@ stronger artefact than a vague win.
 | Phase | What it produces | Status |
 | --- | --- | --- |
 | 0 — Foundation | Repo, tooling, config, CI, README skeleton | ✅ Done |
-| 1 — Labels | For every benchmark prompt: did the local model get it right? | 🔄 Code done and verified; label run in progress |
+| 1 — Labels | For every benchmark prompt: did the local model get it right? | ✅ Done — 10,429 labels, review gate passed (round 2); merge into `main` pending |
 | 2 — Router v0 + kill gate | Frozen encoder + baselines + first cost/quality curve | Not started |
 | 3 — Router v1 | Fine-tuned, calibrated router, 3 seeds | Not started |
 | 4 — Serving | ONNX → Triton, gateway, load tests | Not started |
@@ -238,8 +238,8 @@ config access, so they are easy to test exhaustively.
 | --- | --- |
 | GSM8K | Takes the number after the **last** "The answer is", else after `####`, else in `\boxed{}`, else the last number. Compares as exact decimals, so `42`, `42.0` and `The answer is 42` agree; `1,250.00` equals `1250`. |
 | MATH | Takes the last `\boxed{…}` (with balanced braces) or "The answer is". Normalises LaTeX (`\dfrac`→`\frac`, strips `\left`, degrees, units, `x =`…), then compares strings, then numeric value (`0.5` = `\frac{1}{2}`). A bare number in prose is **not** accepted. |
-| MMLU / ARC | Extracts an option letter from "The answer is (B)", "Answer: C", a lone "B", or "D. …" at the start. Only **uppercase** letters count, so "the answer is a mitochondrion" is not option A. |
-| BBH | Looks at the target's shape: option `(C)` → compare letters; `True`/`No`/`invalid` → compare the first word exactly; integer → compare numbers; bracket sequences → compare ignoring spaces; anything else → exact text. |
+| MMLU / ARC | Extracts an option letter, in order of precedence: an explicit marker ("The answer is (B)", "Answer: C", "the correct choice is C", "the best option is D"); a boxed letter (`\boxed{B}`); a **concluding option line** such as "**B. No, unless …**", accepted only when the line before it ends with a colon (so a bare list of options with no conclusion yields nothing); a lone "B" or "D. …" at the start. Only **uppercase** letters count, so "the answer is a mitochondrion" is not option A. |
+| BBH | Looks at the target's shape: option `(C)` → compare letters; `True`/`No`/`invalid` → the first word if it is an answer word, otherwise the last answer word of that kind in the final clause ("The argument is valid.", "not valid" → invalid), and for yes/no a statement that someone lies or tells the truth reads as No/Yes; integer → compare numbers; bracket sequences → compare ignoring spaces; word lists → compare ignoring commas and case, order still required. A sentence with no answer word stays wrong. |
 | HumanEval / MBPP | Pulls the code from the reply (prefers a fenced block containing `def`, handles a cut-off fence), builds a program with the benchmark's tests, and runs it in the sandbox. Pass = exit code 0. |
 
 Empty answers and refusals grade as wrong everywhere.
@@ -292,11 +292,12 @@ all 10,430 prompts with the model's own tokenizer found exactly one: `mbpp-0493`
 
 | File | Contents | Committed? |
 | --- | --- | --- |
-| `data/labels/Qwen__Qwen2.5-1.5B-Instruct.parquet` | One row per item: benchmark, id, prompt hash, router text, prompt, reference, generation, **label**, token counts, latency, finish reason, model + revision, decode hash | Yes, once the run completes |
-| `data/labels/…meta.json` | Model revision, decode params, vLLM version and settings, software versions, git commit, dataset revisions, per-run timings, exclusions | Yes |
+| `data/labels/Qwen__Qwen2.5-1.5B-Instruct.parquet` | One row per item: benchmark, id, prompt hash, router text, prompt, reference, generation, **label**, token counts, latency, finish reason, model + revision, decode hash | Yes (`5763eb7`) |
+| `data/labels/…meta.json` | Model revision, decode params, vLLM version and settings, software versions, git commit, dataset revisions, per-run timings, exclusions, and every regrade with its before/after counts | Yes |
 | `results/labels-summary.json` | Per-benchmark and overall accuracy, base rate, token-cap rate, flags | Yes |
 | `reports/R1-labels.md` | Phase 1 report; tables between `GENERATED` markers are rewritten by the script | Yes |
-| `reports/review/R1-sample.md` | The 30-item review sheet, filled in by hand | Yes |
+| `reports/review/R1-sample-round1.md` | Review round 1 (seed 0): 2 mislabels, gate failed | Yes |
+| `reports/review/R1-sample.md` | Review round 2 (fresh sample, seed 1): 1 mislabel, gate passed | Yes |
 
 ---
 
@@ -325,10 +326,11 @@ All commands run from `~/projects/switchboard` inside WSL. `make help` lists the
 | `make sandbox-pull` | Pulls `python:3.11-slim` **by digest** — the image the code graders run in | Once — pulled at the pinned digest |
 | `make grader-selfcheck` | For every one of the 10,430 real items, builds an answer that must be right from the reference (or the benchmark's own canonical solution for code) and checks the grader accepts it; where easy, also checks a wrong answer is rejected | **0 failures on all 7 benchmarks** (about 6 minutes; code items run in Docker) |
 | `make vllm` | Starts vLLM 0.30.0 serving the pinned Qwen checkpoint: bf16, 4,096-token context, up to 32 concurrent sequences, 85% of GPU memory, seed 0, port 8001. Runs in its own environment so its PyTorch/CUDA never clash with ours | Left running in terminal 1 during label runs |
-| `make labels BENCH=<name>` | The label run for one benchmark (or `all`) — length check, generate what's missing, grade, write parquet + metadata. Safe to stop and rerun at any time | gsm8k ✅ · mmlu ✅ · mbpp (rerun after the exclusion fix) · arc_challenge (running) · math, humaneval, bbh to go |
+| `make labels BENCH=<name>` | The label run for one benchmark (or `all`) — length check, generate what's missing, grade, write parquet + metadata. Safe to stop and rerun at any time | All 7 ✅ — 10,429 labelled, 1 excluded, 2,663,977 tokens in 0.48 h of generation |
 | `make labels BENCH=<name> LIMIT=N` | Same, but only the first N items — a smoke test | `gsm8k LIMIT=20`, `mbpp LIMIT=10` |
-| `make labels-summary` | Reads the labels file and writes `results/labels-summary.json` + the tables in `reports/R1-labels.md` | After the smoke runs; again after the full run |
-| `make review-sample` | Picks 30 random items (seeded) into a checklist for a human to verify | After the full run |
+| `make regrade BENCH=<name>` / `all` | Re-grades every cached generation with the current graders — no vLLM, no GPU — and records the before/after correct count in the metadata | After each grader fix: `all` (≈5 min, code runs in Docker), then `bbh` |
+| `make labels-summary` | Reads the labels file and writes `results/labels-summary.json` + the tables in `reports/R1-labels.md` | After the smoke runs, the full run, and each regrade — overall base rate **60.0%** |
+| `make review-sample` (`SEED=1` for a fresh draw) | Picks 30 random items (seeded) into a checklist to verify | Seed 0 → round 1 (failed, 2 mislabels); seed 1 → round 2 (passed, 1) |
 | `make help` | Lists all targets | Any time |
 
 ---
@@ -420,6 +422,8 @@ label and number and is nearly invisible by inspection. So:
 | Smoke runs didn't record vLLM settings | Smoke runs called the script directly, bypassing the Makefile | Added `LIMIT=N` to `make labels` |
 | Thousands of `HTTP Request: POST …` log lines | httpx logs every request at INFO | httpx/httpcore set to WARNING; warnings and errors still show |
 | `make labels BENCH=mbpp` → Error 1 on `mbpp-0493` | 3,741-token prompt + 1,024 answer tokens > 4,096 context | Check length via vLLM `/tokenize` before generating; exclude and record over-length prompts |
+| **Review round 1 failed: 2 of 30 mislabelled** | Correct answers in non-template forms graded wrong: a bolded concluding option line (MMLU) and "Jim does not tell the truth" for a Yes/No question (BBH). A scan showed both were systematic: no letter from 108 of 4,172 MC replies; 113 of 208 wrong BBH yes/no-type answers didn't start with the answer word | Graders extended (boxed letters, "correct choice is", concluding option lines, answer words anywhere in the final clause, truth-teller statements, bold "Final Answer"); every label change listed before applying: 94 wrong→correct, **0 correct→wrong**; `make regrade` added; fresh round 2 drawn |
+| Review round 2: 1 of 30 mislabelled (gate passed) | A correctly sorted word list written with commas and capitals | Word-list answers compared ignoring commas and case; the complete set of affected labels (4) checked |
 
 ---
 
@@ -437,6 +441,8 @@ The full table with dates is in `TODO.md` → *Decisions log*. In short:
 | Router sees task text only | Format instructions would leak which benchmark a prompt came from |
 | One decode config, 1,024 tokens | One cache hash; hitting the cap counts as failing |
 | Exclude prompts that can't fit | Smaller budget for one item would break the single decode config |
+| Grade non-template answer forms | A strict template undercounted correct answers and would have biased the router toward escalating; every resulting change was audited |
+| Fresh sample for review round 2 | Re-checking the items a fix was designed around would not test the fix |
 | vLLM as an external server | Its pinned PyTorch/CUDA stays out of the project's environment |
 | One container per program, code over stdin | Nothing on the host is visible to model-written code |
 
@@ -463,6 +469,12 @@ gate). Remote: `https://github.com/MdJunaidAhmed16/SwitchBoard`.
 | `1fe2c8c` | 2026-10-02 | docs: record paused label run and the over-length MBPP prompt |
 | `5c66c33` | 2026-10-02 | fix(labeling): exclude prompts that cannot fit the context window |
 | `ddb5391` | 2026-10-02 | docs: record the context-length exclusion fix in the tracker |
+| `4aa5caa` | 2026-10-02 | docs: add whatsDone.md, a running explanation of the build |
+| `0d43f83` | 2026-10-02 | docs: log the GitHub push and the first CI run in whatsDone |
+| `03ebccd` | 2026-10-02 | fix(labeling): accept correct answers given in non-template forms |
+| `d97a56d` | 2026-10-02 | feat(labeling): add make regrade to re-grade labels from the cache |
+| `5a9f100` | 2026-10-02 | fix(labeling): ignore separators and case in BBH word-list answers |
+| `5763eb7` | 2026-10-02 | bench(labeling): Phase 1 labels for Qwen2.5-1.5B-Instruct, gate passed |
 
 ---
 
@@ -512,3 +524,25 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
   the 6 Docker tests and passes this step locally; `main` goes green when Phase 1 is merged.
 - **Next:** rerun `mbpp`, finish `arc_challenge` (running now), `math`, `humaneval`, `bbh`; then
   `make labels-summary`, the 30-item review gate, and the R1 report.
+
+### 2026-10-02 — Phase 1 complete: labels, review gate, R1 report
+- **Full label run finished:** all 7 benchmarks, 10,429 items labelled, 1 excluded (`mbpp-0493`),
+  2,663,977 tokens generated in 0.48 h of generation wall-clock on the laptop GPU.
+- **Review round 1 (seed 0) failed — 2 of 30 mislabelled.** Both were correct answers the grader
+  missed because they weren't in the requested template. Scanning all labels showed the patterns
+  were systematic, so graders were fixed with new fixtures (including negative cases), every
+  label change was listed and checked before applying (94 wrong→correct, 0 correct→wrong; all 30
+  multiple-choice flips from the new concluding-line rule read individually), and all labels were
+  re-graded from the cache with the new `make regrade` — no GPU needed.
+- **Review round 2 (fresh sample, seed 1) passed — 1 of 30.** The one miss (a correctly sorted
+  word list with commas) was also fixed; its complete set of 4 affected labels was checked.
+- **Results** (from `results/labels-summary.json`): overall base rate **60.0%** (6,259 / 10,429);
+  train 64.7%, validation 68.8%, test 41.2%. Per-benchmark accuracy and token-cap rates are in
+  `reports/R1-labels.md`, which now has its setup, review history, surprises and consequences
+  written up.
+- **Verified:** 177 unit tests pass; the grader self-check still passes on all 10,430 items.
+- **Open:** owner spot-check of both review sheets (the review was done by an AI assistant at the
+  owner's request); merge `feat/labeling-pipeline` into `main`; licence verification at source.
+- **Next:** Phase 2 — split-integrity test first, then the frontier client with a spend guard,
+  the heuristic and random baselines, the v0 router, the cost model and threshold sweep, and the
+  kill gate.

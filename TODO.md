@@ -57,15 +57,19 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 - [x] Confirm the local model (Qwen2.5-1.5B-Instruct)
 - [x] Start vLLM (`make vllm`, v0.30.0); `make test-integration` (3 passed)
 - [x] Smoke run: `make labels BENCH=gsm8k LIMIT=20` and `BENCH=mbpp LIMIT=10` — 0 failed; all wrong labels inspected and genuinely wrong
-- [~] `make labels` for all 7 benchmarks — resuming 2026-10-02
-  - [x] gsm8k (3000) · [x] mmlu (3000) · [~] mbpp (973 / 974)
-  - [ ] arc_challenge · [ ] math · [ ] humaneval · [ ] bbh
+- [x] `make labels` for all 7 benchmarks — 10,429 labelled, 1 excluded (`mbpp-0493`)
+  - [x] gsm8k · [x] mmlu · [x] mbpp · [x] arc_challenge · [x] math · [x] humaneval · [x] bbh
   - [x] **Fixed:** `mbpp-0493` (3,741-token prompt, the only one of 10,430 that cannot fit with 1,024
     output tokens in 4,096) is now excluded before generation via vLLM `/tokenize`, recorded in
-    `.meta.json` and the summary; the run exits 0. Next: rerun `make labels BENCH=mbpp`.
-- [ ] `make labels-summary`
-- [ ] **Gate:** manual review of 30 samples; ≤ 1 mislabel, else fix grader and re-grade
-- [ ] Write `reports/R1-labels.md` (truncation rate needs the Phase 2 encoder tokenizer)
+    `.meta.json` and the summary; the run exits 0.
+- [x] `make labels-summary` — overall base rate 60.0% (see `reports/R1-labels.md`)
+- [x] **Gate:** manual review of 30 samples; ≤ 1 mislabel, else fix grader and re-grade
+  - [x] Round 1 (seed 0): 2 mislabels → **failed**; both systematic format misses
+  - [x] Graders fixed (MC: boxed letter, "correct choice is", concluding option line; BBH: answer word anywhere in final clause, truth-teller statements, bold "Final Answer"); `make regrade` added; 94 labels wrong→correct, 0 correct→wrong
+  - [x] Round 2 (fresh, seed 1): 1 mislabel → **passed**; the miss (word list with commas) fixed too, all 4 affected labels checked
+- [x] Write `reports/R1-labels.md` (truncation rate deferred to Phase 2, needs the encoder tokenizer)
+- [ ] Owner spot-check of the two review sheets (review was done by an AI assistant at the owner's request)
+- [ ] Merge `feat/labeling-pipeline` into `main`
 - [ ] Verify each dataset licence at source before publishing
 
 ## Phase 2 — Router v0 and the kill gate  → `reports/R2-kill-gate.md`
@@ -128,6 +132,7 @@ Decisions made while building, recorded here so they do not live only in chat.
 | 2026-09-30 | Code sandbox: one throwaway container per program, program piped via stdin (no volume mount) | Nothing on the host filesystem is exposed to model-generated code |
 | 2026-10-02 | Frontier model: Claude Opus 5.5 (`claude-opus-5-5`), $4 / $20 per 1M input / output tokens, pinned in `config.py` | Owner chose Claude; Opus 5.5 is the current default Claude model. Thinking cannot be disabled on it and is billed as output, so cost uses the API's reported usage, never estimates. No sampling controls, so frontier answers are generated once and cached rather than assumed reproducible |
 | 2026-10-02 | Prompts that cannot fit `max_model_len` with the fixed 1,024-token budget are excluded and recorded, not failed or labelled | Only `mbpp-0493` qualifies. A smaller budget for one item would break the single decode config; a bigger context window would change the recorded serving setup mid-run |
+| 2026-10-02 | Grade answers given in non-template forms (boxed letter, concluding option line, answer word anywhere in the final clause, truth-teller statements, word lists ignoring commas/case) | The R1 review found the strict template undercounted correct answers systematically; every resulting label change was wrong→correct and audited |
 | 2026-10-02 | Keep HumanEval at all 164 items as a test track | Owner decision. It is below the "several hundred rows" rule, so its per-benchmark figures are reported with confidence intervals, and the code track's test weight also comes from BBH/MATH alongside it. Revisit only if its interval is too wide to say anything |
 
 ## Open questions for the owner
