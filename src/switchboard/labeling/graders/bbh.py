@@ -39,6 +39,10 @@ def _norm(text: str) -> str:
     return " ".join(text.strip(_STRIP).lower().split())
 
 
+def _loose(text: str) -> str:
+    return " ".join(re.sub(r"[,.;:\"'`*()\[\]]", " ", text.lower()).split())
+
+
 def _word_answer(clause: str, target: str) -> str | None:
     """The yes/no, true/false or valid/invalid answer given in ``clause``, if any.
 
@@ -84,6 +88,10 @@ def grade_bbh(prediction: str, reference: str) -> bool:
     got_text, want_text = _norm(clause), _norm(target)
     if got_text == want_text:
         return True
+    # Word-list targets (word_sorting) ignore separators and case, so a correctly ordered
+    # "Buckley, Frisian, IX." matches "buckley frisian ix". Word order still has to match.
+    if re.search(r"[A-Za-z]", target):
+        return _loose(clause) == _loose(target)
     # Bracket-sequence targets (dyck_languages) are compared without whitespace.
     if not re.search(r"[A-Za-z0-9]", target):
         return "".join(got_text.split()) == "".join(want_text.split())

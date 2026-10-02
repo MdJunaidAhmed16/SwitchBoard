@@ -75,3 +75,20 @@ def test_fixtures(prediction: str, reference: str, expected: bool) -> None:
 )
 def test_review_round1_answer_forms(prediction: str, reference: str, expected: bool) -> None:
     assert grade_bbh(prediction, reference) is expected
+
+
+@pytest.mark.parametrize(
+    ("prediction", "expected"),
+    [
+        # word_sorting-152 (review round 2, #20): correct order, commas and capitals.
+        ("The answer is Buckley, Frisian, IX, Livre, Panoramic, Substitution.", True),
+        ("The answer is buckley frisian ix livre panoramic substitution", True),
+        # Order still matters, and no word may be missing or extra.
+        ("The answer is Frisian, Buckley, IX, Livre, Panoramic, Substitution.", False),
+        ("The answer is Buckley, Frisian, IX, Livre, Panoramic.", False),
+        ("The answer is Buckley, Frisian, IX, Livre, Panoramic, Substitution, Zebra.", False),
+    ],
+)
+def test_review_round2_word_lists(prediction: str, expected: bool) -> None:
+    reference = "buckley frisian ix livre panoramic substitution"
+    assert grade_bbh(prediction, reference) is expected
