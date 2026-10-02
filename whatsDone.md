@@ -503,6 +503,12 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
 - Measured all 10,430 prompts with the model's tokenizer: `mbpp-0493` is the only one that can't
   fit. Added the pre-generation length check and recorded exclusions.
 - **Verified:** 143 unit tests, including two new exclusion tests.
-- GitHub remote added; full history pushed.
+- GitHub remote added; `main` and `feat/labeling-pipeline` pushed, history identical to local.
+  Before pushing, history was checked: every author/committer is the owner, no co-author
+  trailers, no secret patterns.
+- **CI on `main`:** lint, type check, unit tests and the gitleaks scan of the full history all
+  pass. The Docker step fails only because `main` is still the Stage 0 commit, where no Docker
+  tests existed yet and pytest reports "no tests collected" as an error. The feature branch has
+  the 6 Docker tests and passes this step locally; `main` goes green when Phase 1 is merged.
 - **Next:** rerun `mbpp`, finish `arc_challenge` (running now), `math`, `humaneval`, `bbh`; then
   `make labels-summary`, the 30-item review gate, and the R1 report.
