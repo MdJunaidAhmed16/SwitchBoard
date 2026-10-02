@@ -64,6 +64,22 @@ class VLLMClient:
         except (httpx.HTTPError, KeyError, ValueError):
             return None
 
+    async def prompt_tokens(self, messages: list[dict[str, str]]) -> tuple[int, int]:
+        """(prompt length in tokens after the chat template, server's max_model_len).
+
+        Uses vLLM's own tokenizer and chat template, so the count is exactly what generation
+        would see.
+        """
+        root = self.base_url.removesuffix("/v1")
+        payload = {"model": self.model, "messages": messages, "add_generation_prompt": True}
+        try:
+            response = await self._client.post(f"{root}/tokenize", json=payload)
+            response.raise_for_status()
+            body = response.json()
+            return int(body["count"]), int(body["max_model_len"])
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            raise LocalBackendError(f"vLLM tokenize failed: {exc!r}") from exc
+
     async def chat(
         self, messages: list[dict[str, str]], decode_params: Mapping[str, Any]
     ) -> Generation:

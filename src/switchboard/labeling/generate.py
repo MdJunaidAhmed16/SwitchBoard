@@ -17,8 +17,9 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
@@ -78,45 +79,68 @@ def item_key(item: Item, settings: Settings) -> tuple[str, str, str]:
 # --- Generation ------------------------------------------------------------------------------
 
 
+@dataclass
+class GenerationOutcome:
+    generated: int = 0
+    cache_hits: int = 0
+    failed: list[str] = field(default_factory=list)
+    # item_id -> reason. Excluded items are never generated and never labelled; they are
+    # recorded in the run metadata and reported in the summary, not counted as failures.
+    excluded: dict[str, str] = field(default_factory=dict)
+
+
 async def generate_missing(
     items: Sequence[Item],
     client: VLLMClient,
     cache: GenerationCache,
     settings: Settings,
-) -> tuple[int, int, list[str]]:
-    """Generate every item not already cached. Returns (generated, cache_hits, failed_ids)."""
+) -> GenerationOutcome:
+    """Generate every item not already cached."""
     todo = [it for it in items if not cache.contains(item_key(it, settings)[0])]
-    hits = len(items) - len(todo)
-    log.info("generation_plan", total=len(items), cached=hits, to_generate=len(todo))
+    outcome = GenerationOutcome(cache_hits=len(items) - len(todo))
+    log.info("generation_plan", total=len(items), cached=outcome.cache_hits, to_generate=len(todo))
 
     semaphore = asyncio.Semaphore(settings.label_concurrency)
-    failed: list[str] = []
-    done = 0
+    max_new = int(DECODE_PARAMS["max_tokens"])
     start = time.perf_counter()
 
-    async def one(item: Item) -> tuple[Item, Generation | None]:
+    async def one(item: Item) -> tuple[Item, Generation | None, str | None]:
         async with semaphore:
             try:
-                return item, await client.chat(messages_for(item), DECODE_PARAMS)
+                n_prompt, max_len = await client.prompt_tokens(messages_for(item))
+                if n_prompt + max_new > max_len:
+                    # The decode budget is fixed for every item, so a prompt that cannot fit
+                    # alongside it is excluded rather than given a smaller budget or a label.
+                    reason = (
+                        f"prompt_exceeds_context: {n_prompt} prompt + {max_new} output "
+                        f"> {max_len} max_model_len"
+                    )
+                    return item, None, reason
+                return item, await client.chat(messages_for(item), DECODE_PARAMS), None
             except LocalBackendError as exc:
                 log.error("generation_failed", item_id=item.item_id, error=str(exc))
-                return item, None
+                return item, None, None
 
     for next_done in asyncio.as_completed([one(it) for it in todo]):
-        item, gen = await next_done
+        item, gen, excluded_reason = await next_done
+        if excluded_reason is not None:
+            log.warning("item_excluded", item_id=item.item_id, reason=excluded_reason)
+            outcome.excluded[item.item_id] = excluded_reason
+            continue
         if gen is None:
-            failed.append(item.item_id)
+            outcome.failed.append(item.item_id)
             continue
         key, p_hash, d_hash = item_key(item, settings)
         cache.put(key, model_key(settings), p_hash, d_hash, gen)
-        done += 1
+        outcome.generated += 1
+        done = outcome.generated
         if done % 50 == 0:
             cache.commit()
         if done % 200 == 0:
             rate = done / (time.perf_counter() - start)
             log.info("generation_progress", done=done, of=len(todo), items_per_s=round(rate, 2))
     cache.commit()
-    return done, hits, failed
+    return outcome
 
 
 # --- Grading ---------------------------------------------------------------------------------
@@ -127,8 +151,14 @@ def grade(
     cache: GenerationCache,
     settings: Settings,
     sandbox: DockerSandbox | None,
+    excluded: Collection[str] = (),
 ) -> list[dict[str, Any]]:
-    """One label row per cached item. Items without a generation are skipped (and logged)."""
+    """One label row per cached item.
+
+    Excluded items are skipped silently (they are recorded in the metadata); any other item
+    without a generation is skipped with a warning.
+    """
+    items = [it for it in items if it.item_id not in excluded]
     if not items:
         return []
     benchmark = items[0].benchmark
@@ -207,7 +237,13 @@ def _git_commit() -> str:
     return f"{sha}{'-dirty' if dirty else ''}"
 
 
-def update_meta(path: Path, settings: Settings, run: dict[str, Any], extra: dict[str, Any]) -> None:
+def update_meta(
+    path: Path,
+    settings: Settings,
+    run: dict[str, Any],
+    extra: dict[str, Any],
+    excluded: dict[str, str] | None = None,
+) -> None:
     meta: dict[str, Any] = json.loads(path.read_text()) if path.exists() else {"runs": []}
     meta.update(
         {
@@ -228,6 +264,8 @@ def update_meta(path: Path, settings: Settings, run: dict[str, Any], extra: dict
         "limit": bench.limit,
         "n_items": run["n_items"],
         "limited_run": run["limited_run"],
+        # Items never generated or labelled, with the reason. Reported by the summary.
+        "excluded": dict(sorted((excluded or {}).items())),
     }
     meta["runs"].append(run)
     path.write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n")
@@ -279,9 +317,9 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
                 items = items[: args.limit]
             started = datetime.now(UTC).isoformat()
             t0 = time.perf_counter()
-            generated, hits, failed = await generate_missing(items, client, cache, settings)
+            outcome = await generate_missing(items, client, cache, settings)
             wall = time.perf_counter() - t0
-            rows = grade(items, cache, settings, sandbox)
+            rows = grade(items, cache, settings, sandbox, excluded=outcome.excluded)
             df = merge_labels(labels_path(settings), rows, {name})
             accuracy = sum(r["label"] for r in rows) / max(len(rows), 1)
             update_meta(
@@ -291,9 +329,10 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
                     "benchmark": name,
                     "started_at": started,
                     "generation_wall_clock_s": round(wall, 1),
-                    "generated": generated,
-                    "cache_hits": hits,
-                    "failed": len(failed),
+                    "generated": outcome.generated,
+                    "cache_hits": outcome.cache_hits,
+                    "failed": len(outcome.failed),
+                    "excluded": len(outcome.excluded),
                     "n_items": len(items),
                     "n_labelled": len(rows),
                     "limited_run": args.limit is not None,
@@ -308,16 +347,19 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
                     },
                     "software": software_versions(),
                 },
+                excluded=outcome.excluded,
             )
             log.info(
                 "benchmark_labelled",
                 benchmark=name,
                 labelled=len(rows),
-                failed=len(failed),
+                failed=len(outcome.failed),
+                excluded=len(outcome.excluded),
                 accuracy=round(accuracy, 4),
                 total_rows=len(df),
             )
-            if failed:
+            if outcome.failed:
+                # Exclusions are recorded decisions, not errors; only real failures exit non-zero.
                 exit_code = 1
     cache.close()
     return exit_code

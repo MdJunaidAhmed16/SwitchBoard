@@ -39,9 +39,11 @@ def summarise(df: pd.DataFrame, roles: dict[str, str], meta: dict[str, Any]) -> 
     for run in meta.get("runs", []):
         wall[run["benchmark"]] = wall.get(run["benchmark"], 0.0) + run["generation_wall_clock_s"]
 
+    bench_meta = meta.get("benchmarks", {})
     per_benchmark = {}
     for name, group in df.groupby("benchmark", sort=True):
         rate = float(group["label"].mean())
+        excluded = bench_meta.get(str(name), {}).get("excluded", {})
         per_benchmark[str(name)] = {
             "role": roles.get(str(name), "unassigned"),
             "n": len(group),
@@ -52,7 +54,9 @@ def summarise(df: pd.DataFrame, roles: dict[str, str], meta: dict[str, Any]) -> 
             "mean_output_tokens": float(group["output_tokens"].mean()),
             "total_output_tokens": int(group["output_tokens"].sum()),
             "generation_wall_clock_s": wall.get(str(name)),
-            "limited_run": meta.get("benchmarks", {}).get(str(name), {}).get("limited_run"),
+            "limited_run": bench_meta.get(str(name), {}).get("limited_run"),
+            "excluded": len(excluded),
+            "excluded_items": excluded,
         }
 
     by_role = {}
@@ -71,6 +75,7 @@ def summarise(df: pd.DataFrame, roles: dict[str, str], meta: dict[str, Any]) -> 
             "n": len(df),
             "correct": int(df["label"].sum()),
             "base_rate": float(df["label"].mean()),
+            "excluded": sum(b["excluded"] for b in per_benchmark.values()),
             "total_output_tokens": int(df["output_tokens"].sum()),
             "generation_wall_clock_s": round(sum(wall.values()), 1),
         },
@@ -93,8 +98,9 @@ def to_markdown(summary: dict[str, Any]) -> str:
         f"**Overall base rate: {_pct(o['base_rate'])}** ({o['correct']} / {o['n']} correct). "
         "Every later accuracy is read against this.",
         "",
-        "| Benchmark | Role | n | Correct | Accuracy | Hit token cap | Mean out tokens | Flag |",
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+        "| Benchmark | Role | n | Correct | Accuracy | Excluded | Hit token cap "
+        "| Mean out tokens | Flag |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     for name, b in summary["per_benchmark"].items():
         flag = b["flag"] or ""
@@ -102,7 +108,8 @@ def to_markdown(summary: dict[str, Any]) -> str:
             flag = (flag + " limited run").strip()
         lines.append(
             f"| {name} | {b['role']} | {b['n']} | {b['correct']} | {_pct(b['accuracy'])} | "
-            f"{_pct(b['hit_token_cap_rate'])} | {b['mean_output_tokens']:.0f} | {flag} |"
+            f"{b['excluded']} | {_pct(b['hit_token_cap_rate'])} | "
+            f"{b['mean_output_tokens']:.0f} | {flag} |"
         )
     lines += ["", "| Role | n | Base rate |", "| --- | ---: | ---: |"]
     for role, r in summary["by_role"].items():
@@ -112,6 +119,14 @@ def to_markdown(summary: dict[str, Any]) -> str:
         "",
         f"Tokens generated: {o['total_output_tokens']:,} · generation wall-clock: {wall_h:.2f} h",
     ]
+    excluded = [
+        (name, item_id, reason)
+        for name, b in summary["per_benchmark"].items()
+        for item_id, reason in b["excluded_items"].items()
+    ]
+    if excluded:
+        lines += ["", f"**Excluded items ({len(excluded)})** — never generated or labelled:"]
+        lines += [f"- {name} / `{item_id}`: {reason}" for name, item_id, reason in excluded]
     if summary["missing_benchmarks"]:
         lines.append(f"\n**Not yet labelled:** {', '.join(summary['missing_benchmarks'])}")
     return "\n".join(lines)
