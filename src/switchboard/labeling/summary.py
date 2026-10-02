@@ -37,7 +37,9 @@ def summarise(df: pd.DataFrame, roles: dict[str, str], meta: dict[str, Any]) -> 
     validate_labels(df)
     wall: dict[str, float] = {}
     for run in meta.get("runs", []):
-        wall[run["benchmark"]] = wall.get(run["benchmark"], 0.0) + run["generation_wall_clock_s"]
+        wall[run["benchmark"]] = wall.get(run["benchmark"], 0.0) + run.get(
+            "generation_wall_clock_s", 0.0
+        )
 
     bench_meta = meta.get("benchmarks", {})
     per_benchmark = {}

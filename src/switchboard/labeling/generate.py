@@ -365,6 +365,56 @@ async def _run(args: argparse.Namespace, settings: Settings) -> int:
     return exit_code
 
 
+def regrade(names: Sequence[str], settings: Settings, seed: int = 0) -> int:
+    """Re-grade cached generations with the current graders. No vLLM, no generation.
+
+    Used after a grader fix: every label is recomputed from the cache in minutes. Exclusions and
+    the limited-run flag are carried over from the metadata of the last generation run.
+    """
+    meta: dict[str, Any] = json.loads(meta_path(settings).read_text())
+    sandbox = _check_docker(settings) if CODE_BENCHMARKS & set(names) else None
+    cache = GenerationCache(settings.cache_path)
+    exit_code = 0
+    for name in names:
+        bench_meta = meta.get("benchmarks", {}).get(name)
+        if bench_meta is None:
+            log.warning("regrade_skipped_never_labelled", benchmark=name)
+            continue
+        excluded: dict[str, str] = bench_meta.get("excluded", {})
+        items = load_items(name, settings, seed=seed)
+        if bench_meta.get("limited_run"):
+            items = items[: bench_meta["n_items"]]
+        old = pd.read_parquet(labels_path(settings))
+        before = int(old.loc[old["benchmark"] == name, "label"].sum())
+        rows = grade(items, cache, settings, sandbox, excluded=excluded)
+        merge_labels(labels_path(settings), rows, {name})
+        after = sum(r["label"] for r in rows)
+        missing = len(items) - len(excluded) - len(rows)
+        update_meta(
+            meta_path(settings),
+            settings,
+            run={
+                "benchmark": name,
+                "kind": "regrade",
+                "started_at": datetime.now(UTC).isoformat(),
+                "n_items": bench_meta["n_items"],
+                "n_labelled": len(rows),
+                "correct_before": before,
+                "correct_after": after,
+                "limited_run": bench_meta.get("limited_run", False),
+                "host": platform.node(),
+            },
+            extra={"software": software_versions()},
+            excluded=excluded,
+        )
+        log.info("benchmark_regraded", benchmark=name, labelled=len(rows),
+                 correct_before=before, correct_after=after, missing=missing)  # fmt: skip
+        if missing:
+            exit_code = 1
+    cache.close()
+    return exit_code
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else None)
     parser.add_argument("--bench", default="all", choices=["all", *REGISTRY])
@@ -374,8 +424,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--vllm-gpu-util", type=float, default=None)
     parser.add_argument("--vllm-max-len", type=int, default=None)
     parser.add_argument("--vllm-max-seqs", type=int, default=None)
+    parser.add_argument(
+        "--regrade", action="store_true", help="re-grade cached generations only; no vLLM needed"
+    )
     args = parser.parse_args(argv)
     configure_logging()
+    if args.regrade:
+        names = list(REGISTRY) if args.bench == "all" else [args.bench]
+        return regrade(names, get_settings(), seed=args.seed)
     return asyncio.run(_run(args, get_settings()))
 
 

@@ -21,7 +21,7 @@ LOCAL_MODEL    ?= $(shell $(RUN) python -c "from switchboard.config import get_s
 LOCAL_REVISION ?= $(shell $(RUN) python -c "from switchboard.config import get_settings as g; print(g().local_model_revision)")
 
 .PHONY: help install lint format typecheck test test-docker test-integration check \
-        sandbox-pull grader-selfcheck vllm labels labels-summary review-sample
+        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample
 
 help:  ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -75,6 +75,9 @@ vllm:  ## Serve the local model with vLLM on the GPU (foreground)
 labels:  ## Generate + grade labels. BENCH=<name>|all; LIMIT=N for a smoke run (first N items)
 	$(RUN) python -m switchboard.labeling.generate --bench $(BENCH) $(if $(LIMIT),--limit $(LIMIT)) \
 	  --vllm-gpu-util $(VLLM_GPU_UTIL) --vllm-max-len $(VLLM_MAX_LEN) --vllm-max-seqs $(VLLM_MAX_SEQS)
+
+regrade:  ## Re-grade cached generations after a grader fix (no vLLM needed). BENCH=<name>|all
+	$(RUN) python -m switchboard.labeling.generate --bench $(BENCH) --regrade
 
 labels-summary:  ## Per-benchmark accuracy / base rate → results/labels-summary.json + markdown
 	$(RUN) python -m switchboard.labeling.summary
