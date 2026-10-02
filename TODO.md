@@ -57,16 +57,12 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 - [x] Confirm the local model (Qwen2.5-1.5B-Instruct)
 - [x] Start vLLM (`make vllm`, v0.30.0); `make test-integration` (3 passed)
 - [x] Smoke run: `make labels BENCH=gsm8k LIMIT=20` and `BENCH=mbpp LIMIT=10` — 0 failed; all wrong labels inspected and genuinely wrong
-- [~] `make labels` for all 7 benchmarks — **paused 2026-10-02**
+- [~] `make labels` for all 7 benchmarks — resuming 2026-10-02
   - [x] gsm8k (3000) · [x] mmlu (3000) · [~] mbpp (973 / 974)
   - [ ] arc_challenge · [ ] math · [ ] humaneval · [ ] bbh
-  - **Open issue:** `mbpp-0493` prompt is 3,741 tokens; with 1,024 output tokens it exceeds vLLM's
-    4,096 context, so vLLM returns 400 and `make labels BENCH=mbpp` exits 1. Measured every prompt
-    with the model's own tokenizer + chat template: it is the **only** one of 10,430 over the
-    3,072-token prompt budget (next longest: 836, mmlu/math). Proposed fix (next session): check
-    prompt length before generating; items that cannot fit are recorded as `excluded:
-    prompt_exceeds_context` in meta + summary (not a failure, not a fabricated label). Alternative:
-    raise `--max-model-len` to 8192 and regenerate nothing else.
+  - [x] **Fixed:** `mbpp-0493` (3,741-token prompt, the only one of 10,430 that cannot fit with 1,024
+    output tokens in 4,096) is now excluded before generation via vLLM `/tokenize`, recorded in
+    `.meta.json` and the summary; the run exits 0. Next: rerun `make labels BENCH=mbpp`.
 - [ ] `make labels-summary`
 - [ ] **Gate:** manual review of 30 samples; ≤ 1 mislabel, else fix grader and re-grade
 - [ ] Write `reports/R1-labels.md` (truncation rate needs the Phase 2 encoder tokenizer)
@@ -131,6 +127,7 @@ Decisions made while building, recorded here so they do not live only in chat.
 | 2026-09-30 | vLLM treated as an external server; not a project dependency | vLLM pins its own torch/CUDA; keeping it out of the project env avoids conflicts with training deps |
 | 2026-09-30 | Code sandbox: one throwaway container per program, program piped via stdin (no volume mount) | Nothing on the host filesystem is exposed to model-generated code |
 | 2026-10-02 | Frontier model: Claude Opus 5.5 (`claude-opus-5-5`), $4 / $20 per 1M input / output tokens, pinned in `config.py` | Owner chose Claude; Opus 5.5 is the current default Claude model. Thinking cannot be disabled on it and is billed as output, so cost uses the API's reported usage, never estimates. No sampling controls, so frontier answers are generated once and cached rather than assumed reproducible |
+| 2026-10-02 | Prompts that cannot fit `max_model_len` with the fixed 1,024-token budget are excluded and recorded, not failed or labelled | Only `mbpp-0493` qualifies. A smaller budget for one item would break the single decode config; a bigger context window would change the recorded serving setup mid-run |
 | 2026-10-02 | Keep HumanEval at all 164 items as a test track | Owner decision. It is below the "several hundred rows" rule, so its per-benchmark figures are reported with confidence intervals, and the code track's test weight also comes from BBH/MATH alongside it. Revisit only if its interval is too wide to say anything |
 
 ## Open questions for the owner
