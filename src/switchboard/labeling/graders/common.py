@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from decimal import Decimal, InvalidOperation
 
-# "The answer is: X", "Final answer: X", "answer is X". The clause runs to end of line.
+# "The answer is: X", "Final answer: X", "**Final Answer**: X". The clause runs to end of line.
 # A dash counts as a separator only when it is not a minus sign ("answer is -7").
-_ANSWER_IS = re.compile(r"answer\s*(?:is|:)\s*(?::|-(?![\d.]))?\s*", re.IGNORECASE)
+_ANSWER_IS = re.compile(r"answer[\s*_]*(?:is|:)\s*(?::|-(?![\d.]))?\s*", re.IGNORECASE)
 
 # Thousands-separated numbers first, so "1,000" is one number and "1, 2" is two.
 _NUMBER = re.compile(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?|-?\.\d+")

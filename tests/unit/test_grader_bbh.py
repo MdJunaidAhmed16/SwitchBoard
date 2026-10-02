@@ -37,3 +37,41 @@ from switchboard.labeling.graders.bbh import grade_bbh
 )
 def test_fixtures(prediction: str, reference: str, expected: bool) -> None:
     assert grade_bbh(prediction, reference) is expected
+
+
+# --- Answer forms found in the R1 label review (round 1) ----------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("prediction", "reference", "expected"),
+    [
+        # web_of_lies-248 (review round 1, #29): a statement instead of Yes/No.
+        (
+            "Therefore, Jim does not tell the truth.\n\nThe answer is Jim does not tell the truth.",
+            "No",
+            True,
+        ),
+        ("The answer is Jim does not tell the truth.", "Yes", False),
+        ("The answer is Ryan tells the truth.", "Yes", True),
+        ("The answer is Ryan tells the truth.", "No", False),
+        ("Final line: The answer is Vina lies.", "No", True),
+        ("Therefore, the answer is that Fletcher tells the truth.", "Yes", True),
+        # Bold "Final Answer" markers.
+        ("Reasoning...\n\n**Final Answer**: No.", "No", True),
+        ("Reasoning...\n\n**Final Answer**: No.", "Yes", False),
+        # The answer word is not the first word.
+        ("Reasoning...\n\n**Final Answer:** The argument is valid.", "valid", True),
+        ("Reasoning...\n\n**Final Answer:** The argument is valid.", "invalid", False),
+        ("The answer is: the argument is not valid.", "invalid", True),
+        ("Therefore, the result of not True or True and False and False is False.", "False", True),
+        ("Therefore, the result of not True or True and False and False is False.", "True", False),
+        ("Simplifying step by step.\n(False).", "False", True),
+        ("Yes.)", "Yes", True),
+        # The first word still wins when it is an answer word.
+        ("The answer is No, even though one might first say yes.", "No", True),
+        # A sentence with no answer word stays wrong: the model did not answer the question asked.
+        ("The answer is Jen did not intend to kill the puppies.", "No", False),
+    ],
+)
+def test_review_round1_answer_forms(prediction: str, reference: str, expected: bool) -> None:
+    assert grade_bbh(prediction, reference) is expected
