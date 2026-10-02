@@ -1,0 +1,321 @@
+{
+  "benchmarks": {
+    "arc_challenge": {
+      "excluded": {},
+      "license_per_card": "CC-BY-SA-4.0",
+      "limit": null,
+      "limited_run": false,
+      "n_items": 1172,
+      "repo_id": "allenai/ai2_arc",
+      "revision": "210d026faf9955653af8916fad021475a3f00453"
+    },
+    "bbh": {
+      "excluded": {},
+      "license_per_card": "MIT (BIG-Bench Hard); verify mirror card",
+      "limit": null,
+      "limited_run": false,
+      "n_items": 1620,
+      "repo_id": "lukaemon/bbh",
+      "revision": "982bb89fd79532a8ac676a61fc42eb1aeec63f99"
+    },
+    "gsm8k": {
+      "excluded": {},
+      "license_per_card": "MIT",
+      "limit": 3000,
+      "limited_run": false,
+      "n_items": 3000,
+      "repo_id": "openai/gsm8k",
+      "revision": "740312add88f781978c0658806c59bc2815b9866"
+    },
+    "humaneval": {
+      "excluded": {},
+      "license_per_card": "MIT",
+      "limit": null,
+      "limited_run": false,
+      "n_items": 164,
+      "repo_id": "openai/openai_humaneval",
+      "revision": "7dce6050a7d6d172f3cc5c32aa97f52fa1a2e544"
+    },
+    "math": {
+      "excluded": {},
+      "license_per_card": "MIT (MATH); verify MATH-500 card",
+      "limit": null,
+      "limited_run": false,
+      "n_items": 500,
+      "repo_id": "HuggingFaceH4/MATH-500",
+      "revision": "6e4ed1a2a79af7d8630a6b768ec859cb5af4d3be"
+    },
+    "mbpp": {
+      "excluded": {
+        "mbpp-0493": "prompt_exceeds_context: 3741 prompt + 1024 output > 4096 max_model_len"
+      },
+      "license_per_card": "CC-BY-4.0",
+      "limit": null,
+      "limited_run": false,
+      "n_items": 974,
+      "repo_id": "google-research-datasets/mbpp",
+      "revision": "4bb6404fdc6cacfda99d4ac4205087b89d32030c"
+    },
+    "mmlu": {
+      "excluded": {},
+      "license_per_card": "MIT",
+      "limit": 3000,
+      "limited_run": false,
+      "n_items": 3000,
+      "repo_id": "cais/mmlu",
+      "revision": "c30699e8356da336a370243923dbaf21066bb9fe"
+    }
+  },
+  "decode_params": {
+    "max_tokens": 1024,
+    "seed": 0,
+    "temperature": 0.0,
+    "top_p": 1.0
+  },
+  "decode_params_hash": "22779784af8279d24776527e1bc986cdcaea8e30aa468a865aea35464cb36dcd",
+  "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+  "model_revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+  "runs": [
+    {
+      "benchmark": "gsm8k",
+      "cache_hits": 0,
+      "failed": 0,
+      "generated": 20,
+      "generation_wall_clock_s": 10.8,
+      "host": "Junaid",
+      "limited_run": true,
+      "n_items": 20,
+      "n_labelled": 20,
+      "started_at": "2026-10-01T21:12:50.622346+00:00"
+    },
+    {
+      "benchmark": "mbpp",
+      "cache_hits": 0,
+      "failed": 0,
+      "generated": 10,
+      "generation_wall_clock_s": 9.0,
+      "host": "Junaid",
+      "limited_run": true,
+      "n_items": 10,
+      "n_labelled": 10,
+      "started_at": "2026-10-01T21:13:44.883555+00:00"
+    },
+    {
+      "benchmark": "gsm8k",
+      "cache_hits": 20,
+      "failed": 0,
+      "generated": 2980,
+      "generation_wall_clock_s": 516.6,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 3000,
+      "n_labelled": 3000,
+      "started_at": "2026-10-01T21:31:37.439234+00:00"
+    },
+    {
+      "benchmark": "mmlu",
+      "cache_hits": 0,
+      "failed": 0,
+      "generated": 3000,
+      "generation_wall_clock_s": 479.5,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 3000,
+      "n_labelled": 3000,
+      "started_at": "2026-10-01T21:42:53.069849+00:00"
+    },
+    {
+      "benchmark": "mbpp",
+      "cache_hits": 10,
+      "failed": 1,
+      "generated": 963,
+      "generation_wall_clock_s": 143.4,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 974,
+      "n_labelled": 973,
+      "started_at": "2026-10-01T21:57:36.774274+00:00"
+    },
+    {
+      "benchmark": "mbpp",
+      "cache_hits": 973,
+      "excluded": 1,
+      "failed": 0,
+      "generated": 0,
+      "generation_wall_clock_s": 0.1,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 974,
+      "n_labelled": 973,
+      "started_at": "2026-10-02T07:07:35.745731+00:00"
+    },
+    {
+      "benchmark": "arc_challenge",
+      "cache_hits": 0,
+      "excluded": 0,
+      "failed": 0,
+      "generated": 1172,
+      "generation_wall_clock_s": 142.4,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 1172,
+      "n_labelled": 1172,
+      "started_at": "2026-10-02T07:15:24.701170+00:00"
+    },
+    {
+      "benchmark": "mbpp",
+      "cache_hits": 973,
+      "excluded": 1,
+      "failed": 0,
+      "generated": 0,
+      "generation_wall_clock_s": 0.0,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 974,
+      "n_labelled": 973,
+      "started_at": "2026-10-02T07:25:15.734996+00:00"
+    },
+    {
+      "benchmark": "math",
+      "cache_hits": 0,
+      "excluded": 0,
+      "failed": 0,
+      "generated": 500,
+      "generation_wall_clock_s": 170.2,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 500,
+      "n_labelled": 500,
+      "started_at": "2026-10-02T07:29:52.092341+00:00"
+    },
+    {
+      "benchmark": "humaneval",
+      "cache_hits": 0,
+      "excluded": 0,
+      "failed": 0,
+      "generated": 164,
+      "generation_wall_clock_s": 24.3,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 164,
+      "n_labelled": 164,
+      "started_at": "2026-10-02T07:34:56.952428+00:00"
+    },
+    {
+      "benchmark": "bbh",
+      "cache_hits": 0,
+      "excluded": 0,
+      "failed": 0,
+      "generated": 1620,
+      "generation_wall_clock_s": 235.1,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 1620,
+      "n_labelled": 1620,
+      "started_at": "2026-10-02T07:38:45.014734+00:00"
+    },
+    {
+      "benchmark": "gsm8k",
+      "correct_after": 2428,
+      "correct_before": 2428,
+      "host": "Junaid",
+      "kind": "regrade",
+      "limited_run": false,
+      "n_items": 3000,
+      "n_labelled": 3000,
+      "started_at": "2026-10-02T17:38:37.236523+00:00"
+    },
+    {
+      "benchmark": "math",
+      "correct_after": 239,
+      "correct_before": 239,
+      "host": "Junaid",
+      "kind": "regrade",
+      "limited_run": false,
+      "n_items": 500,
+      "n_labelled": 500,
+      "started_at": "2026-10-02T17:38:37.497447+00:00"
+    },
+    {
+      "benchmark": "mmlu",
+      "correct_after": 1634,
+      "correct_before": 1613,
+      "host": "Junaid",
+      "kind": "regrade",
+      "limited_run": false,
+      "n_items": 3000,
+      "n_labelled": 3000,
+      "started_at": "2026-10-02T17:38:38.400288+00:00"
+    },
+    {
+      "benchmark": "arc_challenge",
+      "correct_after": 806,
+      "correct_before": 778,
+      "host": "Junaid",
+      "kind": "regrade",
+      "limited_run": false,
+      "n_items": 1172,
+      "n_labelled": 1172,
+      "started_at": "2026-10-02T17:38:38.702821+00:00"
+    },
+    {
+      "benchmark": "bbh",
+      "correct_after": 618,
+      "correct_before": 573,
+      "host": "Junaid",
+      "kind": "regrade",
+      "limited_run": false,
+      "n_items": 1620,
+      "n_labelled": 1620,
+      "started_at": "2026-10-02T17:38:39.317205+00:00"
+    },
+    {
+      "benchmark": "humaneval",
+      "correct_after": 81,
+      "correct_before": 81,
+      "host": "Junaid",
+      "kind": "regrade",
+      "limited_run": false,
+      "n_items": 164,
+      "n_labelled": 164,
+      "started_at": "2026-10-02T17:39:16.282333+00:00"
+    },
+    {
+      "benchmark": "mbpp",
+      "correct_after": 449,
+      "correct_before": 449,
+      "host": "Junaid",
+      "kind": "regrade",
+      "limited_run": false,
+      "n_items": 974,
+      "n_labelled": 973,
+      "started_at": "2026-10-02T17:43:00.387514+00:00"
+    },
+    {
+      "benchmark": "bbh",
+      "correct_after": 622,
+      "correct_before": 618,
+      "host": "Junaid",
+      "kind": "regrade",
+      "limited_run": false,
+      "n_items": 1620,
+      "n_labelled": 1620,
+      "started_at": "2026-10-02T17:44:47.556335+00:00"
+    }
+  ],
+  "sandbox_image": "python:3.11-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e",
+  "software": {
+    "httpx": "0.28.1",
+    "huggingface_hub": "2.0.0",
+    "pandas": "3.0.6",
+    "pyarrow": "25.0.1",
+    "python": "3.11.16",
+    "switchboard_commit": "5a9f100ea40fe43577bdb4a9e07889d7a51b6bbc-dirty"
+  },
+  "vllm": {
+    "gpu_memory_utilization": 0.85,
+    "max_model_len": 4096,
+    "max_num_seqs": 32,
+    "version": "0.30.0"
+  }
+}

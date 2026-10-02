@@ -1,0 +1,149 @@
+{
+  "by_role": {
+    "test": {
+      "base_rate": 0.4124343257443082,
+      "n": 2284
+    },
+    "train": {
+      "base_rate": 0.6469238491323677,
+      "n": 6973
+    },
+    "val": {
+      "base_rate": 0.6877133105802048,
+      "n": 1172
+    }
+  },
+  "decode_params": {
+    "max_tokens": 1024,
+    "seed": 0,
+    "temperature": 0.0,
+    "top_p": 1.0
+  },
+  "missing_benchmarks": [],
+  "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+  "model_revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+  "overall": {
+    "base_rate": 0.6001534183526704,
+    "correct": 6259,
+    "excluded": 1,
+    "generation_wall_clock_s": 1731.4,
+    "n": 10429,
+    "total_output_tokens": 2663977
+  },
+  "per_benchmark": {
+    "arc_challenge": {
+      "accuracy": 0.6877133105802048,
+      "correct": 806,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 142.4,
+      "hit_token_cap_rate": 0.0,
+      "limited_run": false,
+      "mean_output_tokens": 196.68941979522185,
+      "n": 1172,
+      "role": "val",
+      "total_output_tokens": 230520
+    },
+    "bbh": {
+      "accuracy": 0.38395061728395063,
+      "correct": 622,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 235.1,
+      "hit_token_cap_rate": 0.0049382716049382715,
+      "limited_run": false,
+      "mean_output_tokens": 233.05123456790125,
+      "n": 1620,
+      "role": "test",
+      "total_output_tokens": 377543
+    },
+    "gsm8k": {
+      "accuracy": 0.8093333333333333,
+      "correct": 2428,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 527.4,
+      "hit_token_cap_rate": 0.0006666666666666666,
+      "limited_run": false,
+      "mean_output_tokens": 257.03833333333336,
+      "n": 3000,
+      "role": "train",
+      "total_output_tokens": 771115
+    },
+    "humaneval": {
+      "accuracy": 0.49390243902439024,
+      "correct": 81,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 24.3,
+      "hit_token_cap_rate": 0.0,
+      "limited_run": false,
+      "mean_output_tokens": 196.3109756097561,
+      "n": 164,
+      "role": "test",
+      "total_output_tokens": 32195
+    },
+    "math": {
+      "accuracy": 0.478,
+      "correct": 239,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 170.2,
+      "hit_token_cap_rate": 0.092,
+      "limited_run": false,
+      "mean_output_tokens": 556.676,
+      "n": 500,
+      "role": "test",
+      "total_output_tokens": 278338
+    },
+    "mbpp": {
+      "accuracy": 0.4614594039054471,
+      "correct": 449,
+      "excluded": 1,
+      "excluded_items": {
+        "mbpp-0493": "prompt_exceeds_context: 3741 prompt + 1024 output > 4096 max_model_len"
+      },
+      "flag": null,
+      "generation_wall_clock_s": 152.5,
+      "hit_token_cap_rate": 0.0,
+      "limited_run": false,
+      "mean_output_tokens": 231.070914696814,
+      "n": 973,
+      "role": "train",
+      "total_output_tokens": 224832
+    },
+    "mmlu": {
+      "accuracy": 0.5446666666666666,
+      "correct": 1634,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 479.5,
+      "hit_token_cap_rate": 0.0016666666666666668,
+      "limited_run": false,
+      "mean_output_tokens": 249.81133333333332,
+      "n": 3000,
+      "role": "train",
+      "total_output_tokens": 749434
+    }
+  },
+  "software": {
+    "httpx": "0.28.1",
+    "huggingface_hub": "2.0.0",
+    "pandas": "3.0.6",
+    "pyarrow": "25.0.1",
+    "python": "3.11.16",
+    "switchboard_commit": "5a9f100ea40fe43577bdb4a9e07889d7a51b6bbc-dirty"
+  },
+  "vllm": {
+    "gpu_memory_utilization": 0.85,
+    "max_model_len": 4096,
+    "max_num_seqs": 32,
+    "version": "0.30.0"
+  }
+}
