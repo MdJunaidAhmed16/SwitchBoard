@@ -69,12 +69,12 @@ Each phase ends with a report in `reports/` and a gate that can fail.
   - [x] Round 2 (fresh, seed 1): 1 mislabel → **passed**; the miss (word list with commas) fixed too, all 4 affected labels checked
 - [x] Write `reports/R1-labels.md` (truncation rate deferred to Phase 2, needs the encoder tokenizer)
 - [ ] Owner spot-check of the two review sheets (review was done by an AI assistant at the owner's request)
-- [ ] Merge `feat/labeling-pipeline` into `main`
+- [x] Merge `feat/labeling-pipeline` into `main` — fast-forward, all commits kept; CI green on `main`
 - [ ] Verify each dataset licence at source before publishing
 
 ## Phase 2 — Router v0 and the kill gate  → `reports/R2-kill-gate.md`
 - [ ] Split integrity test (written first, cannot be skipped in CI)
-- [ ] Frontier backend + spend guard; frontier answers for val/test prompts, cached
+- [ ] Frontier backend via OpenRouter (OpenAI-compatible, same client shape as vLLM) + spend guard; frontier answers for test prompts, cached; billed cost read from OpenRouter's usage accounting
 - [ ] Heuristic baseline (token count + keywords → logistic regression)
 - [ ] Random baseline at matched escalation rate
 - [ ] v0: frozen sentence encoder + logistic regression
@@ -130,9 +130,11 @@ Decisions made while building, recorded here so they do not live only in chat.
 | 2026-09-30 | Datasets fetched as pinned parquet/jsonl via `huggingface_hub`, not `datasets.load_dataset` | Exact revision pinning, fewer dependencies, no loader scripts |
 | 2026-09-30 | vLLM treated as an external server; not a project dependency | vLLM pins its own torch/CUDA; keeping it out of the project env avoids conflicts with training deps |
 | 2026-09-30 | Code sandbox: one throwaway container per program, program piped via stdin (no volume mount) | Nothing on the host filesystem is exposed to model-generated code |
-| 2026-10-02 | Frontier model: Claude Opus 5.5 (`claude-opus-5-5`), $4 / $20 per 1M input / output tokens, pinned in `config.py` | Owner chose Claude; Opus 5.5 is the current default Claude model. Thinking cannot be disabled on it and is billed as output, so cost uses the API's reported usage, never estimates. No sampling controls, so frontier answers are generated once and cached rather than assumed reproducible |
+| 2026-10-02 | Frontier model: Claude Opus 5.5, $4 / $20 per 1M input / output tokens, pinned in `config.py` (provider changed to OpenRouter on 2026-10-03, see below) | Owner chose Claude; Opus 5.5 is the current default Claude model. Thinking cannot be disabled on it and is billed as output, so cost uses the API's reported usage, never estimates. No sampling controls, so frontier answers are generated once and cached rather than assumed reproducible |
 | 2026-10-02 | Prompts that cannot fit `max_model_len` with the fixed 1,024-token budget are excluded and recorded, not failed or labelled | Only `mbpp-0493` qualifies. A smaller budget for one item would break the single decode config; a bigger context window would change the recorded serving setup mid-run |
 | 2026-10-02 | Grade answers given in non-template forms (boxed letter, concluding option line, answer word anywhere in the final clause, truth-teller statements, word lists ignoring commas/case) | The R1 review found the strict template undercounted correct answers systematically; every resulting label change was wrong→correct and audited |
+| 2026-10-03 | Frontier calls go through **OpenRouter** (`anthropic/claude-opus-5.5`, $4 / $20 per 1M listed), key from `OPENROUTER_API_KEY` in the gitignored `.env` | Owner's choice of key provider. OpenRouter's API is OpenAI-compatible, so the frontier and vLLM clients share one shape (as 06-serving asks); a per-key credit limit set in OpenRouter adds a hard spend ceiling outside the code |
+| 2026-10-03 | Merge feature branches into `main` by **fast-forward**, not squash | Owner wants the commit history (and GitHub's contribution graph) to show the real work; squashing collapses a branch into one commit. Commits are never backdated |
 | 2026-10-02 | Keep HumanEval at all 164 items as a test track | Owner decision. It is below the "several hundred rows" rule, so its per-benchmark figures are reported with confidence intervals, and the code track's test weight also comes from BBH/MATH alongside it. Revisit only if its interval is too wide to say anything |
 
 ## Open questions for the owner

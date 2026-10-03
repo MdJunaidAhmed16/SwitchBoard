@@ -65,7 +65,7 @@ stronger artefact than a vague win.
 | Role | Model | Where it runs | Cost basis |
 | --- | --- | --- | --- |
 | Local ("cheap") model | `Qwen/Qwen2.5-1.5B-Instruct`, pinned to commit `989aa79` | Your RTX 4060 laptop GPU, served by vLLM | GPU time |
-| Frontier model | Claude Opus 5.5 (`claude-opus-5-5`) | Anthropic API | $4 / $20 per 1M input / output tokens, pinned in `config.py` |
+| Frontier model | Claude Opus 5.5 (`anthropic/claude-opus-5.5`) | Anthropic's model, called through OpenRouter | $4 / $20 per 1M input / output tokens, pinned in `config.py` |
 | Router | Small text encoder + classifier (built in Phases 2–3) | CPU, served by NVIDIA Triton (Phase 4) | ~free |
 
 ---
@@ -435,6 +435,8 @@ The full table with dates is in `TODO.md` → *Decisions log*. In short:
 | --- | --- |
 | Local model Qwen2.5-1.5B-Instruct | A 3B model's weights (~6.2 GB) leave almost no KV cache on an 8 GB GPU; 1.5B is Apache-2.0 |
 | Frontier model Claude Opus 5.5 | Owner's choice of provider; current default Claude model; prices pinned in config |
+| Call it through OpenRouter | Owner's key provider; OpenAI-compatible, so it shares the vLLM client's shape; per-key credit limit = extra spend ceiling |
+| Fast-forward merges, not squash | Keeps every commit and its real date on `main`, so history and the contribution graph reflect the work; nothing is backdated |
 | ARC-Challenge as validation | Validation must be a held-out *benchmark*; ARC is public, multiple choice, and in neither train nor test |
 | MATH-500 for MATH | The original MATH dataset repo was taken down; MATH-500 is the standard subset |
 | Keep HumanEval at 164 items | Below the "several hundred" guideline, so it's reported with confidence intervals |
@@ -475,6 +477,7 @@ gate). Remote: `https://github.com/MdJunaidAhmed16/SwitchBoard`.
 | `d97a56d` | 2026-10-02 | feat(labeling): add make regrade to re-grade labels from the cache |
 | `5a9f100` | 2026-10-02 | fix(labeling): ignore separators and case in BBH word-list answers |
 | `5763eb7` | 2026-10-02 | bench(labeling): Phase 1 labels for Qwen2.5-1.5B-Instruct, gate passed |
+| `c11e806` | 2026-10-02 | docs: record Phase 1 completion in whatsDone and the tracker |
 
 ---
 
@@ -546,3 +549,18 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
 - **Next:** Phase 2 — split-integrity test first, then the frontier client with a spend guard,
   the heuristic and random baselines, the v0 router, the cost model and threshold sweep, and the
   kill gate.
+
+### 2026-10-03 — Phase 1 merged; frontier provider set to OpenRouter
+- **Why the GitHub graph showed only 1 contribution:** GitHub counts commits only once they are on
+  the default branch (`main`). All Phase 1 work was on `feat/labeling-pipeline`, so the only
+  contribution was the repository's creation.
+- **Merged** `feat/labeling-pipeline` into `main` by **fast-forward**: all 21 commits are now on
+  `main` with their original dates (6 on 2026-09-30, 15 on 2026-10-02). CI on `main` is green.
+  From now on each step is merged into `main` the same day it is finished, so the graph follows
+  the actual work. Commits are never backdated.
+- **Frontier provider → OpenRouter.** `config.py` now points at `https://openrouter.ai/api/v1`
+  with model `anthropic/claude-opus-5.5` ($4 / $20 per 1M listed on OpenRouter, checked
+  2026-10-03). The key is read from `OPENROUTER_API_KEY` in the gitignored `.env` as a secret
+  value that never appears in logs or reprs (tested).
+- **Verified:** 179 unit tests; gitleaks clean.
+- **Next:** Phase 2, starting with the split-integrity test.
