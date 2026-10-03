@@ -9,7 +9,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -26,12 +26,18 @@ class Settings(BaseSettings):
     local_model_revision: str = "989aa7980e4cf806f80c7fef2b1adb7bc71aa306"
     local_base_url: str = "http://localhost:8001/v1"
 
-    # --- Frontier model ----------------------------------------------------------------------
+    # --- Frontier model (Claude Opus 5.5 via OpenRouter) -----------------------------------------
     # The cost table reads these, so it cannot drift from what was actually called. Prices are
-    # Anthropic first-party API rates in USD per 1M tokens (checked 2026-10-02).
-    frontier_model_id: str = "claude-opus-5-5"
+    # OpenRouter's listed rates for this model in USD per 1M tokens (checked 2026-10-03).
+    frontier_base_url: str = "https://openrouter.ai/api/v1"
+    frontier_model_id: str = "anthropic/claude-opus-5.5"
     frontier_price_in_per_mtok: float = 4.00
     frontier_price_out_per_mtok: float = 20.00
+    # Read from OPENROUTER_API_KEY (environment or the gitignored .env). Never logged or printed.
+    openrouter_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OPENROUTER_API_KEY", "SWITCHBOARD_OPENROUTER_API_KEY"),
+    )
 
     # --- Label generation --------------------------------------------------------------------
     label_concurrency: int = Field(default=32, ge=1)
