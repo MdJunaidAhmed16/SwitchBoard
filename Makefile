@@ -21,7 +21,7 @@ LOCAL_MODEL    ?= $(shell $(RUN) python -c "from switchboard.config import get_s
 LOCAL_REVISION ?= $(shell $(RUN) python -c "from switchboard.config import get_settings as g; print(g().local_model_revision)")
 
 .PHONY: help install lint format typecheck test test-docker test-integration check \
-        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample
+        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample train-v0
 
 help:  ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -81,6 +81,11 @@ regrade:  ## Re-grade cached generations after a grader fix (no vLLM needed). BE
 
 labels-summary:  ## Per-benchmark accuracy / base rate → results/labels-summary.json + markdown
 	$(RUN) python -m switchboard.labeling.summary
+
+# --- Phase 2: router v0 and the kill gate -------------------------------------------------------
+
+train-v0:  ## Fit heuristic, random and v0 routers; AUROC on the held-out split → R2 report
+	$(RUN) python -m switchboard.router.evaluate
 
 review-sample:  ## Draw 30 random (prompt, generation, label) triples for the manual gate
 	$(RUN) python -m switchboard.labeling.review --n 30 --seed $(SEED)
