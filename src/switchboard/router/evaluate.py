@@ -89,6 +89,35 @@ def _row_split(data: RouterData, v0_c: float, encoder: FrozenEncoder, seed: int)
     return out
 
 
+def _diagnostics(scores: pd.DataFrame) -> dict[str, Any]:
+    """Why a router generalises or not: fit on train, per-benchmark calibration, within-benchmark
+    discrimination. A router whose mean score per training benchmark tracks that benchmark's base
+    rate while its held-out AUROC is low has learned provenance rather than difficulty."""
+    names = [c.removeprefix("score_") for c in scores.columns if c.startswith("score_")]
+    train, test = scores[scores["role"] == "train"], scores[scores["role"] == "test"]
+    test_groups = test.groupby("benchmark")
+    weights = test_groups.size().to_numpy()
+    return {
+        "train_in_sample_auroc": {n: auroc(train["label"], train[f"score_{n}"]) for n in names},
+        "mean_score_vs_base_rate": {
+            str(b): {
+                "role": str(g["role"].iloc[0]),
+                "base_rate": base_rate(g["label"]),
+                **{n: float(g[f"score_{n}"].mean()) for n in names},
+            }
+            for b, g in scores.groupby("benchmark")
+        },
+        "test_within_benchmark_auroc_weighted": {
+            n: float(
+                np.average(
+                    [auroc(g["label"], g[f"score_{n}"]) for _, g in test_groups], weights=weights
+                )
+            )
+            for n in names
+        },
+    }
+
+
 def evaluate(settings: Settings) -> dict[str, Any]:
     seed = settings.seed
     data = load_router_data(settings)
@@ -139,6 +168,8 @@ def evaluate(settings: Settings) -> dict[str, Any]:
             for b, idx in every.groupby("benchmark").indices.items()
         },
     }
+
+    results["diagnostics"] = _diagnostics(scores)
 
     v0_test = results["routers"]["v0"]["test"]
     results["kill_gate"] = {
@@ -233,6 +264,33 @@ def to_markdown(r: dict[str, Any]) -> str:
     for name in ("heuristic", "random", "v0"):
         row, ds = rs[name]["auroc"], r["routers"][name]["test"]["auroc"]
         lines.append(f"| {name} | {row:.3f} | {ds:.3f} | {row - ds:+.3f} |")
+
+    d = r["diagnostics"]
+    lines += [
+        "",
+        "**Diagnostics** — fit on the training benchmarks, and mean score per benchmark "
+        "against the local model's actual base rate:",
+        "",
+        "| Router | Train AUROC (in-sample) | Test AUROC, pooled | Test AUROC, within-benchmark |",
+        "| --- | ---: | ---: | ---: |",
+    ]
+    for name in ("heuristic", "random", "v0"):
+        lines.append(
+            f"| {name} | {d['train_in_sample_auroc'][name]:.3f} | "
+            f"{r['routers'][name]['test']['auroc']:.3f} | "
+            f"{d['test_within_benchmark_auroc_weighted'][name]:.3f} |"
+        )
+    lines += [
+        "",
+        "| Benchmark | Role | Base rate | Heuristic mean score | v0 mean score |",
+        "| --- | --- | ---: | ---: | ---: |",
+    ]
+    order = {"train": 0, "val": 1, "test": 2}
+    per_bench = d["mean_score_vs_base_rate"].items()
+    for b, m in sorted(per_bench, key=lambda kv: order[kv[1]["role"]]):
+        lines.append(
+            f"| {b} | {m['role']} | {m['base_rate']:.3f} | {m['heuristic']:.3f} | {m['v0']:.3f} |"
+        )
 
     t = r["truncation"]
     lines += [
