@@ -573,3 +573,24 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
   is pushed, a PR is opened with what changed / how it was verified / what to test (template in
   `.github/pull_request_template.md`), CI runs on the PR, and it is merged with a **merge
   commit** (not squash), so every commit keeps its real date.
+
+### 2026-10-03 — Phase 2, part 1: routers, and the kill gate fails
+- **Built:** the split-integrity guard (runs on the committed labels, not skippable); one `Router`
+  interface; the **heuristic** (log word count + keyword count → logistic regression, keyword list
+  fixed in advance); the **random** router; **v0** (frozen `BAAI/bge-base-en-v1.5` embeddings,
+  cached, + logistic regression with C chosen on validation); metrics with bootstrap intervals;
+  and `make train-v0`, which writes `results/router-v0.json`, per-prompt scores and the generated
+  R2 tables. Dependencies added: PyTorch (CUDA), transformers, scikit-learn, matplotlib.
+- **Result** (from `results/router-v0.json`): on the held-out test benchmarks the heuristic scores
+  AUROC 0.606, v0 0.549, random 0.507. v0 is significantly *below* the heuristic (paired interval
+  entirely under zero), and its interval's lower end (0.524) misses the pre-registered 0.55 floor:
+  **kill-gate criterion 3 fails.**
+- **Why:** v0 learned which benchmark a prompt came from. Its in-sample training AUROC is 0.755
+  and its mean score per training benchmark tracks the base rates; on a random row split it would
+  have looked strong (0.712), which is precisely the inflation the dataset-level split exists to
+  expose.
+- **What happens now:** per the roadmap, building stops (no serving work) until the owner chooses:
+  write up the negative result, change the benchmark mix / re-weight training, or change the local
+  model. The frontier answers are needed for the cost curve under every option.
+- **Verified:** 201 unit tests; results identical across two runs.
+

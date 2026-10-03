@@ -73,17 +73,20 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 - [ ] Verify each dataset licence at source before publishing
 
 ## Phase 2 — Router v0 and the kill gate  → `reports/R2-kill-gate.md`
-- [ ] Split integrity test (written first, cannot be skipped in CI)
-- [ ] Frontier backend via OpenRouter (OpenAI-compatible, same client shape as vLLM) + spend guard; frontier answers for test prompts, cached; billed cost read from OpenRouter's usage accounting
-- [ ] Heuristic baseline (token count + keywords → logistic regression)
-- [ ] Random baseline at matched escalation rate
-- [ ] v0: frozen sentence encoder + logistic regression
-- [ ] Shared `predict_proba` interface test
+- [x] Split integrity test (written first, runs on the committed labels, not skippable) — no prompt crosses splits
+- [x] Heuristic baseline (log word count + keyword count → logistic regression; keyword list fixed before evaluation)
+- [x] Random baseline (hash-based uniform score; matched-escalation comparison happens in the sweep)
+- [x] v0: frozen `BAAI/bge-base-en-v1.5` + logistic regression, C chosen on validation
+- [x] Shared `predict_proba` interface test (shape, range, order independence)
+- [x] Row-split AUROC (labelled optimistic) alongside dataset-split AUROC
+- [x] Truncation rate for R1 — 22 prompts (0.21%) over 512 tokens
+- [x] `make train-v0` → `results/router-v0.json`, scores parquet, generated R2 tables; reproducible across reruns
+- [x] **Gate criterion 3 (pre-registered: v0 test AUROC 95% CI low > 0.55): FAILED.** v0 also significantly below the heuristic. Diagnostics show v0 learned benchmark provenance
+- [ ] **Owner decision after the failed gate:** negative-result write-up · change the benchmark mix / re-weight training · change the local model (see R2 §5). Serving (Phase 4) is not started
+- [ ] Frontier backend via OpenRouter (OpenAI-compatible, same client shape as vLLM) + spend guard; pilot cost estimate shown to the owner before the full run; frontier answers for test prompts, cached — needed for the curve under every option
 - [ ] Cost model (pinned prices/GPU rate in config) + unit test against hand-computed value
-- [ ] Threshold sweep 0→1 step 0.01; monotonicity test; reproducibility test
-- [ ] Row-split AUROC (labelled optimistic) alongside dataset-split AUROC
-- [ ] Truncation rate for R1
-- [ ] **Gate:** v0 dominates heuristic, beats random, AUROC meaningfully > 0.5 — else STOP
+- [ ] Threshold sweep 0→1 step 0.01; monotonicity test (at-threshold monotonicity ✓ in unit tests); reproducibility test
+- [ ] Gate criteria 1–2 (curve vs heuristic, vs random at matched escalation)
 - [ ] README results section filled from the results file, even if bad
 
 ## Phase 3 — Router v1  → `reports/R3-router-v1.md`
@@ -136,6 +139,9 @@ Decisions made while building, recorded here so they do not live only in chat.
 | 2026-10-03 | Frontier calls go through **OpenRouter** (`anthropic/claude-opus-5.5`, $4 / $20 per 1M listed), key from `OPENROUTER_API_KEY` in the gitignored `.env` | Owner's choice of key provider. OpenRouter's API is OpenAI-compatible, so the frontier and vLLM clients share one shape (as 06-serving asks); a per-key credit limit set in OpenRouter adds a hard spend ceiling outside the code |
 | 2026-10-03 | Every step lands through a **pull request** (template in `.github/`), merged with a merge commit — never squash; superseded the direct fast-forward used for Phase 1 | Owner wants PRs in the history; CI runs on each PR; a merge commit keeps every commit and its real date, so the contribution graph still reflects the work |
 | 2026-10-03 | Merge feature branches into `main` by **fast-forward**, not squash | Owner wants the commit history (and GitHub's contribution graph) to show the real work; squashing collapses a branch into one commit. Commits are never backdated |
+| 2026-10-03 | Router encoder `BAAI/bge-base-en-v1.5` @ `a5beb1e` for both v0 (frozen) and v1 (fine-tuned) | 110M, MIT, 512 tokens, strong frozen embeddings and fine-tunable; one backbone makes v1's gain over v0 the value of fine-tuning alone |
+| 2026-10-03 | Kill-gate criterion 3 made concrete before the first run: lower end of v0's 95% bootstrap interval for test AUROC > 0.55 | "Meaningfully above 0.5" needs a number fixed in advance, or it can be argued after the fact |
+| 2026-10-03 | huggingface-hub 2.0.0 → 1.33.0 | tokenizers 0.23 (needed by transformers 5.18) requires hub < 2.0; the download calls used are unchanged |
 | 2026-10-02 | Keep HumanEval at all 164 items as a test track | Owner decision. It is below the "several hundred rows" rule, so its per-benchmark figures are reported with confidence intervals, and the code track's test weight also comes from BBH/MATH alongside it. Revisit only if its interval is too wide to say anything |
 
 ## Open questions for the owner
