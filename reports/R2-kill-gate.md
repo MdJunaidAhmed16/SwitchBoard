@@ -102,6 +102,53 @@ fails whatever they show; the curve is still needed for the write-up of either o
 **Verdict: FAIL.** Following 11-roadmap: stop building; the options are to change the benchmark
 mix, change the local model, or write up the negative result.
 
+## Attempt 2 — pre-registered design
+
+> Written on 2026-10-05, after attempt 1 failed and **before any attempt-2 label, score or metric
+> existed**. The owner chose this path (R2 §5, option 2) and asked for the fine-tuned router to be
+> evaluated as well. Attempt 1 above stays in this report unchanged; attempt 2 is reported beside
+> it, never instead of it.
+
+**What is fixed (identical to attempt 1).** Local model, decoding, graders, the validation benchmark
+(ARC-Challenge) and the **test benchmarks (MATH, HumanEval, BBH) and their labels**. The kill-gate
+criteria, including the 0.55 floor on the lower end of the 95% test-AUROC interval.
+
+**What changes, and why.**
+
+1. **More, more varied training benchmarks** — six added to GSM8K, MMLU and MBPP, so that "which
+   benchmark is this?" stops being a useful shortcut. All public, machine-gradable with the existing
+   numeric or multiple-choice graders, pinned by commit:
+
+   | Benchmark | Licence (card) | Grader | Items |
+   | --- | --- | --- | --- |
+   | GSM-Hard | MIT | numeric | the 1,016 with whole-number answers |
+   | SVAMP | MIT | numeric | all 1,000 (train + test files) |
+   | AQuA-RAT | Apache-2.0 | multiple choice A–E | 1,500 sampled from train |
+   | CommonsenseQA | MIT | multiple choice A–E | 1,500 sampled from train |
+   | MedMCQA | Apache-2.0 | multiple choice A–D | 1,500 single-answer, sampled from train |
+   | QASC | CC-BY-4.0 | multiple choice A–H | 1,500 sampled from train |
+
+   GSM-Hard matters most: it reads like GSM8K but is much harder, which directly contradicts the
+   "GSM8K-looking ⇒ easy" pattern attempt 1 learned.
+2. **Benchmark-balanced training weights.** Within each training benchmark, the correct and the
+   incorrect examples each receive the same total weight, and every benchmark receives the same
+   total weight. Under these weights a router gains nothing from recognising a benchmark, because
+   every benchmark is 50/50; only within-benchmark difficulty is left to learn. The same weights
+   are applied to the heuristic, so the comparison stays like-for-like.
+3. **v1, the fine-tuned router**, evaluated under the same protocol: the same `bge-base-en-v1.5`
+   backbone fine-tuned end to end with weighted BCE (AdamW, encoder lr 2e-5, head lr 1e-3, weight
+   decay 0.01, 10% linear warm-up then linear decay, up to 4 epochs with early stopping on
+   validation AUROC, batch 32, bf16), **3 seeds** reported as mean and spread, and temperature
+   scaling fitted on validation only.
+
+**How attempt 2 is judged.** The same three gate criteria, applied to v0 and to v1 separately. In
+addition: v1 counts as better than v0 only if its mean test AUROC exceeds v0's by more than the
+spread across its three seeds (13-testing-and-reports, Phase 3).
+
+**Known weakness, stated up front.** Attempt 2 was designed after attempt 1's test results were
+seen. The test benchmarks are unchanged and nothing in this design was tuned against them, but a
+second attempt after a failure is a forking path, and the write-up will say so.
+
 ## 4. What surprised me
 
 - **The frozen encoder lost to the two-feature heuristic** on held-out benchmarks, and the paired
