@@ -54,7 +54,7 @@ Tokens generated: 2,663,977 · generation wall-clock: 0.48 h
 - mbpp / `mbpp-0493`: prompt_exceeds_context: 3741 prompt + 1024 output > 4096 max_model_len
 <!-- END GENERATED: labels-summary -->
 
-Truncation rate at the router encoder's limit: `TBD` (needs the Phase 2 encoder tokenizer).
+Truncation rate at the router encoder's 512-token limit: reported in R2 from `results/router-v0.json` (`truncation`) — 22 prompts, 0.21%.
 
 ### Manual review gate
 

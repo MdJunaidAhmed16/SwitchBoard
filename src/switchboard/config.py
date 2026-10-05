@@ -39,6 +39,14 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("OPENROUTER_API_KEY", "SWITCHBOARD_OPENROUTER_API_KEY"),
     )
 
+    # --- Router ------------------------------------------------------------------------------
+    # One backbone for v0 (frozen) and v1 (fine-tuned), so v1's gain over v0 is the value of the
+    # fine-tuning alone. Pinned by commit hash like the local model.
+    router_encoder_id: str = "BAAI/bge-base-en-v1.5"
+    router_encoder_revision: str = "a5beb1e3e68b9ab74eb54cfd186867f64f240e1a"
+    router_max_tokens: int = Field(default=512, ge=1)
+    seed: int = 0
+
     # --- Label generation --------------------------------------------------------------------
     label_concurrency: int = Field(default=32, ge=1)
     request_timeout_s: float = Field(default=300.0, gt=0)

@@ -6,14 +6,18 @@ readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
     "httpx==0.28.1",
-    "huggingface-hub==2.0.0",
+    "huggingface-hub==1.33.0",
+    "matplotlib==3.11.2",
     "numpy==2.4.6",
     "pandas==3.0.6",
     "pyarrow==25.0.1",
     "pydantic==2.13.5",
     "pydantic-settings==2.15.0",
     "pyyaml==6.0.3",
+    "scikit-learn==1.9.1",
     "structlog==26.1.0",
+    "torch==2.14.1",
+    "transformers==5.18.0",
 ]
 
 [build-system]
@@ -41,7 +45,7 @@ mypy_path = "src"
 packages = ["switchboard"]
 
 [[tool.mypy.overrides]]
-module = ["pyarrow.*", "huggingface_hub.*"]
+module = ["pyarrow.*", "huggingface_hub.*", "sklearn.*", "transformers.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

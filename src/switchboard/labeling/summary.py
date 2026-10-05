@@ -134,12 +134,14 @@ def to_markdown(summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def write_into_report(report: Path, block: str) -> None:
-    text = report.read_text() if report.exists() else f"{BEGIN}\n{END}\n"
-    if BEGIN not in text:
-        text += f"\n{BEGIN}\n{END}\n"
-    pattern = re.compile(re.escape(BEGIN) + ".*?" + re.escape(END), re.DOTALL)
-    report.write_text(pattern.sub(lambda _: f"{BEGIN}\n{block}\n{END}", text))
+def write_into_report(report: Path, block: str, begin: str = BEGIN, end: str = END) -> None:
+    """Replace the text between ``begin`` and ``end`` in ``report``; everything else is kept."""
+    text = report.read_text() if report.exists() else f"{begin}\n{end}\n"
+    if begin not in text:
+        text += f"\n{begin}\n{end}\n"
+    pattern = re.compile(re.escape(begin) + ".*?" + re.escape(end), re.DOTALL)
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(pattern.sub(lambda _: f"{begin}\n{block}\n{end}", text))
 
 
 def run(settings: Settings) -> dict[str, Any]:
