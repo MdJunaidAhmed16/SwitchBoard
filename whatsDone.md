@@ -564,3 +564,12 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
   value that never appears in logs or reprs (tested).
 - **Verified:** 179 unit tests; gitleaks clean.
 - **Next:** Phase 2, starting with the split-integrity test.
+
+### 2026-10-03 — Pull-request workflow
+- **Why there were no PRs:** Phase 1 and the OpenRouter change were merged locally and pushed
+  straight to `main`, which bypasses GitHub's pull-request flow. Those merges are already in
+  `main`, so they can't become PRs after the fact.
+- **From now on every step is a PR:** work happens on a `<type>/<scope>-<slug>` branch, the branch
+  is pushed, a PR is opened with what changed / how it was verified / what to test (template in
+  `.github/pull_request_template.md`), CI runs on the PR, and it is merged with a **merge
+  commit** (not squash), so every commit keeps its real date.
