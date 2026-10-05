@@ -219,6 +219,97 @@ def build_mbpp(df: pd.DataFrame) -> list[Item]:
     return items
 
 
+# --- Attempt 2 training benchmarks (pre-registered in R2) ----------------------------------------
+
+
+def _numeric_item(benchmark: str, item_id: str, question: str, answer: str) -> Item:
+    return Item(
+        benchmark=benchmark,
+        item_id=item_id,
+        router_text=question,
+        user_prompt=_with_instruction(question, NUMERIC_INSTRUCTION),
+        reference=answer,
+    )
+
+
+def _choice_item(benchmark: str, item_id: str, question: str, options: list[str], ref: str) -> Item:
+    task = f"{question}\n\n{_choices_block(options)}"
+    return Item(
+        benchmark=benchmark,
+        item_id=item_id,
+        router_text=task,
+        user_prompt=_with_instruction(task, CHOICE_INSTRUCTION),
+        reference=ref,
+    )
+
+
+def build_gsm_hard(df: pd.DataFrame) -> list[Item]:
+    """Only whole-number answers, so the exact numeric grader stays sound."""
+    items = []
+    for idx, question, target in zip(df["_row"], df["input"], df["target"], strict=True):
+        value = float(target)
+        if value != round(value):
+            continue
+        items.append(_numeric_item("gsm_hard", f"{idx:05d}", question, str(int(value))))
+    return items
+
+
+def build_svamp(df: pd.DataFrame) -> list[Item]:
+    return [
+        _numeric_item("svamp", str(uid), text, str(int(float(answer))))
+        for uid, text, answer in zip(df["ID"], df["question_concat"], df["Answer"], strict=True)
+    ]
+
+
+def build_aqua_rat(df: pd.DataFrame) -> list[Item]:
+    items = []
+    for idx, question, options, correct in zip(
+        df["_row"], df["question"], df["options"], df["correct"], strict=True
+    ):
+        # Options arrive as "A)21"; drop the original letter, the block re-letters by position.
+        texts = [str(o).split(")", 1)[1].strip() if ")" in str(o) else str(o) for o in options]
+        position = "ABCDE".index(str(correct).strip())
+        items.append(
+            _choice_item("aqua_rat", f"{idx:06d}", question, texts, "ABCDEFGHIJ"[position])
+        )
+    return items
+
+
+def build_labelled_choices(benchmark: str) -> Callable[[pd.DataFrame], list[Item]]:
+    """CommonsenseQA and QASC: ``choices`` {label, text} and an ``answerKey`` label."""
+
+    def build(df: pd.DataFrame) -> list[Item]:
+        items = []
+        for item_id, question, choices, key in zip(
+            df["id"], df["question"], df["choices"], df["answerKey"], strict=True
+        ):
+            labels = [str(x) for x in choices["label"]]
+            if key not in labels:
+                continue
+            position = labels.index(key)
+            texts = [str(x) for x in choices["text"]]
+            items.append(
+                _choice_item(benchmark, str(item_id), question, texts, "ABCDEFGHIJ"[position])
+            )
+        return items
+
+    return build
+
+
+def build_medmcqa(df: pd.DataFrame) -> list[Item]:
+    """Single-answer questions only; ``cop`` is the 0-based index of the correct option."""
+    items = []
+    for item_id, question, a, b, c, d, cop, kind in zip(
+        df["id"], df["question"], df["opa"], df["opb"], df["opc"], df["opd"], df["cop"],
+        df["choice_type"], strict=True,
+    ):  # fmt: skip
+        options = [str(x) for x in (a, b, c, d)]
+        if kind != "single" or not all(o.strip() for o in options):
+            continue
+        items.append(_choice_item("medmcqa", str(item_id), question, options, "ABCD"[int(cop)]))
+    return items
+
+
 _BBH_TASKS = (
     "boolean_expressions",
     "causal_judgement",
@@ -320,6 +411,65 @@ REGISTRY: dict[str, Benchmark] = {
             ),
             license="CC-BY-4.0",
             build=build_mbpp,
+        ),
+        # --- Attempt 2 training benchmarks (pre-registered in R2, 2026-10-05) -----------------
+        Benchmark(
+            name="gsm_hard",
+            track="hard arithmetic word problems",
+            repo_id="reasoning-machines/gsm-hard",
+            revision="960448f73503112d4226baeb8eb41d3fb5ae2506",
+            files=("gsmhardv2.jsonl",),
+            license="MIT",
+            build=build_gsm_hard,
+        ),
+        Benchmark(
+            name="svamp",
+            track="simple arithmetic word problems",
+            repo_id="ChilleD/SVAMP",
+            revision="5e0bf1e5e7c0e9c4bc39180d224f41f3f801b7ef",
+            files=("data/train-00000-of-00001.parquet", "data/test-00000-of-00001.parquet"),
+            license="MIT",
+            build=build_svamp,
+        ),
+        Benchmark(
+            name="aqua_rat",
+            track="algebra word problems (multiple choice)",
+            repo_id="deepmind/aqua_rat",
+            revision="33301c6a050c96af81f63cad5562cb5363e88971",
+            files=("raw/train-00000-of-00001.parquet",),
+            license="Apache-2.0",
+            build=build_aqua_rat,
+            limit=1500,
+        ),
+        Benchmark(
+            name="commonsense_qa",
+            track="commonsense reasoning (multiple choice)",
+            repo_id="tau/commonsense_qa",
+            revision="94630fe30dad47192a8546eb75f094926d47e155",
+            files=("data/train-00000-of-00001.parquet",),
+            license="MIT",
+            build=build_labelled_choices("commonsense_qa"),
+            limit=1500,
+        ),
+        Benchmark(
+            name="medmcqa",
+            track="medical knowledge (multiple choice)",
+            repo_id="openlifescienceai/medmcqa",
+            revision="91c6572c454088bf71b679ad90aa8dffcd0d5868",
+            files=("data/train-00000-of-00001.parquet",),
+            license="Apache-2.0",
+            build=build_medmcqa,
+            limit=1500,
+        ),
+        Benchmark(
+            name="qasc",
+            track="science reasoning, 8 options (multiple choice)",
+            repo_id="allenai/qasc",
+            revision="a34ba204eb9a33b919c10cc08f4f1c8dae5ec070",
+            files=("data/train-00000-of-00001.parquet",),
+            license="CC-BY-4.0",
+            build=build_labelled_choices("qasc"),
+            limit=1500,
         ),
     ]
 }

@@ -18,7 +18,12 @@ from decimal import Decimal
 
 from switchboard.config import Settings, get_settings
 from switchboard.labeling.benchmarks import REGISTRY, Item, load_items, load_raw
-from switchboard.labeling.graders import CODE_BENCHMARKS, grader_for
+from switchboard.labeling.graders import (
+    CHOICE_BENCHMARKS,
+    CODE_BENCHMARKS,
+    NUMERIC_BENCHMARKS,
+    grader_for,
+)
 from switchboard.labeling.sandbox import DockerSandbox
 from switchboard.log import configure_logging, get_logger
 
@@ -43,11 +48,11 @@ def _canonical_code(name: str, settings: Settings) -> dict[str, str]:
 def oracle(item: Item) -> tuple[str, str | None]:
     """(prediction that must pass, prediction that must fail or None)."""
     ref = item.reference
-    if item.benchmark == "gsm8k":
+    if item.benchmark in NUMERIC_BENCHMARKS:
         return f"Working...\nThe answer is: {ref}", f"The answer is: {Decimal(ref) + 1}"
     if item.benchmark == "math":
         return f"So the answer is $\\boxed{{{ref}}}$.", None
-    if item.benchmark in ("mmlu", "arc_challenge"):
+    if item.benchmark in CHOICE_BENCHMARKS:
         wrong = "B" if ref == "A" else "A"
         return f"Reasoning.\nThe answer is ({ref})", f"The answer is ({wrong})"
     if item.benchmark == "bbh":
