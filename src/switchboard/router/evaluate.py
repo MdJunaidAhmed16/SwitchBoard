@@ -1,10 +1,14 @@
-"""Phase 2 router evaluation: heuristic, random and v0 on the dataset-level split.
+"""Router evaluation on the dataset-level split, one pre-registered attempt at a time.
 
-    python -m switchboard.router.evaluate        (make train-v0)
+    python -m switchboard.router.evaluate --attempt 1     (make train-v0)
+    python -m switchboard.router.evaluate --attempt 2     (make train-attempt2)
 
-Writes ``results/router-v0.json`` (every number), ``results/router-v0-scores.parquet`` (one score
-per router per labelled prompt, for the cost-quality sweep) and the generated tables in
-``reports/R2-kill-gate.md``.
+Attempt 1: heuristic, random and v0 trained on GSM8K, MMLU and MBPP. Attempt 2: the wider training
+mix with benchmark-balanced weights, plus v1 fine-tuned over three seeds (see ``attempts.py``).
+
+Writes ``results/<stem>.json`` (every number), ``results/<stem>-scores.parquet`` (one score per
+router per labelled prompt, for the cost-quality sweep) and that attempt's generated block in
+``reports/R2-kill-gate.md``. The stem is ``router-v0`` for attempt 1, ``router-attempt2`` after.
 
 What this run can and cannot decide. Kill-gate criterion 3 (AUROC meaningfully above 0.5) is
 evaluated here. Criteria 1 and 2 (v0's cost-quality curve dominates the heuristic's and beats random
@@ -14,9 +18,11 @@ evaluated by the sweep. The AUROC comparisons below are diagnostics for those, n
 
 from __future__ import annotations
 
+import argparse
 import json
 import platform
 import sys
+from collections.abc import Sequence
 from importlib.metadata import version
 from typing import Any
 
@@ -27,6 +33,7 @@ from switchboard.config import Settings, get_settings
 from switchboard.labeling.generate import _git_commit
 from switchboard.labeling.summary import write_into_report
 from switchboard.log import configure_logging, get_logger
+from switchboard.router.attempts import ATTEMPTS, V1_SEEDS, Attempt, balanced_weights
 from switchboard.router.baselines import KEYWORDS, HeuristicRouter, RandomRouter
 from switchboard.router.data import RouterData, load_router_data, row_split
 from switchboard.router.encoder import FrozenEncoder
@@ -40,15 +47,13 @@ from switchboard.router.metrics import (
     paired_auroc_difference_ci,
 )
 from switchboard.router.v0 import V0Router
+from switchboard.router.v1 import V1Router, pretrained_backbone
 
 log = get_logger(__name__)
 
 # Kill-gate criterion 3, fixed before the first evaluation run: the lower end of v0's 95%
 # bootstrap interval for test AUROC must clear this, not merely 0.5.
 AUROC_FLOOR = 0.55
-
-BEGIN = "<!-- BEGIN GENERATED: router-v0 -->"
-END = "<!-- END GENERATED: router-v0 -->"
 
 
 def _split_metrics(y: np.ndarray, p: np.ndarray, seed: int) -> dict[str, Any]:
@@ -73,9 +78,13 @@ def _per_benchmark(frame: pd.DataFrame, p: np.ndarray, seed: int) -> dict[str, A
     return out
 
 
-def _row_split(data: RouterData, v0_c: float, encoder: FrozenEncoder, seed: int) -> dict[str, Any]:
+def _row_split(
+    data: RouterData, v0_c: float, encoder: FrozenEncoder, seed: int, balanced: bool = False
+) -> dict[str, Any]:
     """Optimistic comparison: random 80/20 split over all rows, same model settings."""
-    train, test = row_split(data.all(), seed=seed)
+    train, test = row_split(data.all().drop(columns="weight", errors="ignore"), seed=seed)
+    if balanced:
+        train = train.assign(weight=balanced_weights(train).to_numpy())
     heuristic = HeuristicRouter()
     heuristic.fit(train, train)
     v0 = V0Router(encoder, seed=seed)
@@ -118,11 +127,29 @@ def _diagnostics(scores: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def evaluate(settings: Settings) -> dict[str, Any]:
+def _prepare(data: RouterData, attempt: Attempt) -> RouterData:
+    """Restrict training to the attempt's benchmarks and attach its training weights."""
+    train = data.train
+    if attempt.train_benchmarks is not None:
+        missing = set(attempt.train_benchmarks) - set(train["benchmark"])
+        if missing:
+            raise ValueError(f"attempt {attempt.number} needs labels for {sorted(missing)}")
+        train = train[train["benchmark"].isin(attempt.train_benchmarks)].reset_index(drop=True)
+    if attempt.balanced:
+        train = train.assign(weight=balanced_weights(train).to_numpy())
+    return RouterData(train=train, val=data.val, test=data.test)
+
+
+def evaluate(settings: Settings, attempt: Attempt = ATTEMPTS[1]) -> dict[str, Any]:
     seed = settings.seed
-    data = load_router_data(settings)
+    data = _prepare(load_router_data(settings), attempt)
     encoder = FrozenEncoder.from_settings(settings)
     routers: list[Router] = [HeuristicRouter(), RandomRouter(seed), V0Router(encoder, seed=seed)]
+    if attempt.with_v1:
+        backbone = pretrained_backbone(settings.router_encoder_id, settings.router_encoder_revision)
+        routers += [
+            V1Router(backbone, seed=s, max_tokens=settings.router_max_tokens) for s in V1_SEEDS
+        ]
     every = data.all()
     scores = every[["benchmark", "item_id", "role", "label"]].copy()
     test_y = data.test["label"].to_numpy(dtype=int)
@@ -141,6 +168,16 @@ def evaluate(settings: Settings) -> dict[str, Any]:
         if isinstance(router, V0Router):
             entry["chosen_c"] = router.chosen_c
             entry["val_auroc_by_c"] = {str(c): a for c, a in router.val_auroc_by_c.items()}
+        if isinstance(router, V1Router):
+            raw_test = router.predict_proba_uncalibrated(list(data.test["router_text"]))
+            entry["v1"] = {
+                "seed": router.seed,
+                "best_epoch": router.best_epoch,
+                "temperature": router.temperature,
+                "history": router.history,
+                "test_ece_uncalibrated": ece(test_y, raw_test),
+                "test_brier_uncalibrated": brier(test_y, raw_test),
+            }
         scores[f"score_{router.name}"] = router.predict_proba(list(every["router_text"]))
         results["routers"][router.name] = entry
         log.info(
@@ -148,14 +185,33 @@ def evaluate(settings: Settings) -> dict[str, Any]:
         )
 
     comparisons = {}
-    for other in ("heuristic", "random"):
-        diff, lo, hi = paired_auroc_difference_ci(test_y, test_p["v0"], test_p[other], seed=seed)
-        comparisons[f"v0_minus_{other}"] = {"auroc_diff": diff, "ci95": [lo, hi]}
+    pairs = [("v0", "heuristic"), ("v0", "random")]
+    v1_names = [r.name for r in routers if isinstance(r, V1Router)]
+    pairs += [(n, other) for n in v1_names for other in ("v0", "heuristic")]
+    for a, b in pairs:
+        diff, lo, hi = paired_auroc_difference_ci(test_y, test_p[a], test_p[b], seed=seed)
+        comparisons[f"{a}_minus_{b}"] = {"auroc_diff": diff, "ci95": [lo, hi]}
     results["test_comparisons"] = comparisons
+
+    if v1_names:
+        aucs = [results["routers"][n]["test"]["auroc"] for n in v1_names]
+        mean, spread = float(np.mean(aucs)), float(max(aucs) - min(aucs))
+        gain = mean - results["routers"]["v0"]["test"]["auroc"]
+        results["v1"] = {
+            "seeds": {n: results["routers"][n].pop("v1") for n in v1_names},
+            "test_auroc_mean": mean,
+            "test_auroc_std": float(np.std(aucs)),
+            "test_auroc_spread": spread,
+            "gain_over_v0": gain,
+            # Pre-registered: v1 is better than v0 only if the gain exceeds the seed spread.
+            "beats_v0": gain > spread,
+        }
 
     v0 = next(r for r in routers if isinstance(r, V0Router))
     assert v0.chosen_c is not None
-    results["row_split_optimistic"] = _row_split(data, v0.chosen_c, encoder, seed)
+    results["row_split_optimistic"] = _row_split(
+        data, v0.chosen_c, encoder, seed, balanced=attempt.balanced
+    )
 
     lengths = encoder.token_lengths(list(every["router_text"]))
     truncated = lengths > settings.router_max_tokens
@@ -178,6 +234,17 @@ def evaluate(settings: Settings) -> dict[str, Any]:
         "criterion_3_pass": v0_test["auroc_ci95"][0] > AUROC_FLOOR,
         "criteria_1_2": "pending: need frontier answers and the cost-quality sweep",
     }
+    if v1_names:
+        lows = [results["routers"][n]["test"]["auroc_ci95"][0] for n in v1_names]
+        results["kill_gate"]["criterion_3_v1_ci_lows"] = lows
+        # Every seed must clear the floor: no picking the luckiest seed.
+        results["kill_gate"]["criterion_3_v1_pass_all_seeds"] = all(x > AUROC_FLOOR for x in lows)
+    results["attempt"] = {
+        "number": attempt.number,
+        "train_benchmarks": sorted(data.train["benchmark"].unique()),
+        "balanced_weights": attempt.balanced,
+        "with_v1": attempt.with_v1,
+    }
     results["setup"] = {
         "encoder": settings.router_encoder_id,
         "encoder_revision": settings.router_encoder_revision,
@@ -192,10 +259,12 @@ def evaluate(settings: Settings) -> dict[str, Any]:
         },
     }
 
+    stem = attempt.stem
     settings.results_dir.mkdir(parents=True, exist_ok=True)
-    (settings.results_dir / "router-v0.json").write_text(json.dumps(results, indent=2) + "\n")
-    scores.to_parquet(settings.results_dir / "router-v0-scores.parquet", index=False)
-    write_into_report(settings.reports_dir / "R2-kill-gate.md", to_markdown(results), BEGIN, END)
+    (settings.results_dir / f"{stem}.json").write_text(json.dumps(results, indent=2) + "\n")
+    scores.to_parquet(settings.results_dir / f"{stem}-scores.parquet", index=False)
+    begin, end = f"<!-- BEGIN GENERATED: {stem} -->", f"<!-- END GENERATED: {stem} -->"
+    write_into_report(settings.reports_dir / "R2-kill-gate.md", to_markdown(results), begin, end)
     return results
 
 
@@ -307,12 +376,62 @@ def to_markdown(r: dict[str, Any]) -> str:
         f"low = {g['criterion_3_v0_test_auroc_ci_low']:.3f} → **{verdict}**. Criteria 1 and 2: "
         "pending the frontier answers and the cost-quality sweep.",
     ]
+    if "v1" in r:
+        lines += _v1_markdown(r)
     return "\n".join(lines)
 
 
-def main() -> int:
+def _v1_markdown(r: dict[str, Any]) -> list[str]:
+    v1 = r["v1"]
+    lines = [
+        "",
+        f"**v1 — fine-tuned encoder, {len(v1['seeds'])} seeds** (benchmark-balanced weighted BCE; "
+        "best epoch by validation AUROC; temperature fitted on validation only):",
+        "",
+        "| Seed | Best epoch | Temperature | Val AUROC | Test AUROC | Test 95% CI | "
+        "Test ECE before → after | Test Brier before → after |",
+        "| --- | ---: | ---: | ---: | ---: | --- | --- | --- |",
+    ]
+    for name, s in v1["seeds"].items():
+        e = r["routers"][name]
+        lines.append(
+            f"| {name} | {s['best_epoch']} | {s['temperature']:.2f} | {e['val']['auroc']:.3f} | "
+            f"**{e['test']['auroc']:.3f}** | {_ci(e['test']['auroc_ci95'])} | "
+            f"{s['test_ece_uncalibrated']:.3f} → {e['test']['ece']:.3f} | "
+            f"{s['test_brier_uncalibrated']:.3f} → {e['test']['brier']:.3f} |"
+        )
+    verdict = "YES" if v1["beats_v0"] else "NO"
+    lines += [
+        "",
+        f"v1 test AUROC mean {v1['test_auroc_mean']:.3f}, spread across seeds "
+        f"{v1['test_auroc_spread']:.3f}; gain over v0 {v1['gain_over_v0']:+.3f}. "
+        f"Gain larger than the seed spread (pre-registered test of v1 over v0): **{verdict}**.",
+        "",
+        "| Test benchmark | v0 | " + " | ".join(v1["seeds"]) + " |",
+        "| --- | ---: |" + " ---: |" * len(v1["seeds"]),
+    ]
+    for b, v in r["routers"]["v0"]["test_per_benchmark"].items():
+        cells = " | ".join(
+            f"{r['routers'][n]['test_per_benchmark'][b]['auroc']:.3f}" for n in v1["seeds"]
+        )
+        lines.append(f"| {b} | {v['auroc']:.3f} | {cells} |")
+    g = r["kill_gate"]
+    v1_verdict = "PASS" if g["criterion_3_v1_pass_all_seeds"] else "FAIL"
+    lows = ", ".join(f"{x:.3f}" for x in g["criterion_3_v1_ci_lows"])
+    lines += [
+        "",
+        f"**Kill gate, criterion 3 for v1** (every seed's 95% CI low > "
+        f"{g['criterion_3_auroc_floor']}): lows = {lows} → **{v1_verdict}**.",
+    ]
+    return lines
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Evaluate the routers for one attempt.")
+    parser.add_argument("--attempt", type=int, default=1, choices=sorted(ATTEMPTS))
+    args = parser.parse_args(argv)
     configure_logging()
-    evaluate(get_settings())
+    evaluate(get_settings(), ATTEMPTS[args.attempt])
     return 0
 
 
