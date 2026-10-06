@@ -22,7 +22,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from switchboard.router.interface import Scores
+from switchboard.router.interface import Scores, sample_weights
 
 # Fixed before any router was evaluated, and never tuned against results. Words that signal a
 # demanding task: proofs, derivations, implementation work, exhaustive or multi-step reasoning.
@@ -62,7 +62,11 @@ class HeuristicRouter:
 
     def fit(self, train: pd.DataFrame, val: pd.DataFrame) -> None:
         # No hyperparameters, so validation is not used.
-        self._model.fit(heuristic_features(list(train["router_text"])), train["label"].astype(int))
+        self._model.fit(
+            heuristic_features(list(train["router_text"])),
+            train["label"].astype(int),
+            logisticregression__sample_weight=sample_weights(train),
+        )
 
     def predict_proba(self, texts: Sequence[str]) -> Scores:
         proba: Scores = self._model.predict_proba(heuristic_features(texts))[:, 1]

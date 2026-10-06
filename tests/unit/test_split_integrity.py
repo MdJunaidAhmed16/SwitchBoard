@@ -22,7 +22,11 @@ def test_committed_labels_have_no_cross_split_prompts() -> None:
 
 def test_roles_follow_splits_yaml() -> None:
     data = load_router_data(Settings())
-    assert set(data.train["benchmark"]) == {"gsm8k", "mmlu", "mbpp"}
+    # Training benchmarks are labelled in batches (attempt 2 added six), so this checks membership.
+    assert {"gsm8k", "mmlu", "mbpp"} <= set(data.train["benchmark"]) <= {
+        "gsm8k", "mmlu", "mbpp", "gsm_hard", "svamp", "aqua_rat", "commonsense_qa", "medmcqa",
+        "qasc",
+    }  # fmt: skip
     assert set(data.val["benchmark"]) == {"arc_challenge"}
     assert set(data.test["benchmark"]) == {"math", "humaneval", "bbh"}
 
