@@ -21,7 +21,7 @@ LOCAL_MODEL    ?= $(shell $(RUN) python -c "from switchboard.config import get_s
 LOCAL_REVISION ?= $(shell $(RUN) python -c "from switchboard.config import get_settings as g; print(g().local_model_revision)")
 
 .PHONY: help install lint format typecheck test test-docker test-integration check \
-        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample train-v0 train-attempt2
+        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample train-v0 train-attempt2 frontier-pilot frontier
 
 help:  ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -89,6 +89,13 @@ train-v0:  ## Attempt 1: heuristic, random, v0 on GSM8K/MMLU/MBPP → R2 report 
 
 train-attempt2:  ## Attempt 2: wider mix, balanced weights, v0 + fine-tuned v1 x3 seeds (GPU) → R2
 	$(RUN) python -m switchboard.router.evaluate --attempt 2
+
+frontier-pilot:  ## Pilot: Claude answers 10 test prompts per benchmark; projects full cost (spends ≤ $2)
+	$(RUN) python -m switchboard.labeling.frontier --pilot 10
+
+frontier:  ## Claude answers every test prompt (cached). Requires MAX_USD=<hard ceiling>
+	@test -n "$(MAX_USD)" || { echo "set MAX_USD, e.g. make frontier MAX_USD=25"; exit 1; }
+	$(RUN) python -m switchboard.labeling.frontier --max-usd $(MAX_USD)
 
 review-sample:  ## Draw 30 random (prompt, generation, label) triples for the manual gate
 	$(RUN) python -m switchboard.labeling.review --n 30 --seed $(SEED)

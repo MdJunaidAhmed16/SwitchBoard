@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     frontier_model_id: str = "anthropic/claude-opus-5.5"
     frontier_price_in_per_mtok: float = 4.00
     frontier_price_out_per_mtok: float = 20.00
+    # Hard ceiling on what one frontier run may spend (09-security, cost guardrail 4). A run that
+    # would exceed it stops, keeps what it has, and writes partial results. Override per run.
+    frontier_max_usd_per_run: float = Field(default=2.0, gt=0)
+    frontier_concurrency: int = Field(default=8, ge=1)
     # Read from OPENROUTER_API_KEY (environment or the gitignored .env). Never logged or printed.
     openrouter_api_key: SecretStr | None = Field(
         default=None,

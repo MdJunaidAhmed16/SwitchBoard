@@ -17,7 +17,7 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -62,18 +62,36 @@ def meta_path(settings: Settings) -> Path:
     return settings.labels_dir / f"{model_slug(settings.local_model_id)}.meta.json"
 
 
+@dataclass(frozen=True)
+class ModelSpec:
+    """Which model produced a generation, and with what decoding. Part of every cache key."""
+
+    model_id: str
+    revision: str
+    decode_params: Mapping[str, Any]
+
+    @property
+    def key(self) -> str:
+        return f"{self.model_id}@{self.revision}"
+
+
+def local_spec(settings: Settings) -> ModelSpec:
+    return ModelSpec(settings.local_model_id, settings.local_model_revision, DECODE_PARAMS)
+
+
 def model_key(settings: Settings) -> str:
-    return f"{settings.local_model_id}@{settings.local_model_revision}"
+    return local_spec(settings).key
 
 
 def messages_for(item: Item) -> list[dict[str, str]]:
     return [{"role": "user", "content": item.user_prompt}]
 
 
-def item_key(item: Item, settings: Settings) -> tuple[str, str, str]:
+def item_key(item: Item, settings: Settings, spec: ModelSpec | None = None) -> tuple[str, str, str]:
+    spec = spec or local_spec(settings)
     p_hash = prompt_hash(messages_for(item))
-    d_hash = decode_params_hash(DECODE_PARAMS)
-    return cache_key(model_key(settings), p_hash, d_hash), p_hash, d_hash
+    d_hash = decode_params_hash(spec.decode_params)
+    return cache_key(spec.key, p_hash, d_hash), p_hash, d_hash
 
 
 # --- Generation ------------------------------------------------------------------------------
@@ -152,12 +170,14 @@ def grade(
     settings: Settings,
     sandbox: DockerSandbox | None,
     excluded: Collection[str] = (),
+    spec: ModelSpec | None = None,
 ) -> list[dict[str, Any]]:
-    """One label row per cached item.
+    """One label row per cached item, for the local model unless ``spec`` names another.
 
     Excluded items are skipped silently (they are recorded in the metadata); any other item
     without a generation is skipped with a warning.
     """
+    spec = spec or local_spec(settings)
     items = [it for it in items if it.item_id not in excluded]
     if not items:
         return []
@@ -169,7 +189,7 @@ def grade(
 
     pairs: list[tuple[Item, Generation, str, str]] = []
     for item in items:
-        key, p_hash, d_hash = item_key(item, settings)
+        key, p_hash, d_hash = item_key(item, settings, spec)
         gen = cache.get(key)
         if gen is None:
             log.warning("missing_generation", item_id=item.item_id)
@@ -194,8 +214,8 @@ def grade(
             "output_tokens": gen.output_tokens,
             "latency_ms": gen.latency_ms,
             "finish_reason": gen.finish_reason,
-            "model_id": settings.local_model_id,
-            "model_revision": settings.local_model_revision,
+            "model_id": spec.model_id,
+            "model_revision": spec.revision,
             "decode_params_hash": d_hash,
         }
         for (item, gen, p_hash, d_hash), label in zip(pairs, labels, strict=True)
