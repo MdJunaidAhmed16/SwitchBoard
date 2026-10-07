@@ -2,6 +2,8 @@
 
     python -m switchboard.labeling.frontier --pilot 10      (make frontier-pilot)
     python -m switchboard.labeling.frontier --max-usd 25    (make frontier MAX_USD=25)
+    python -m switchboard.labeling.frontier --fraction 0.2 --max-usd 3.5
+                                                            (make frontier FRACTION=0.2 MAX_USD=3.5)
 
 The cost-quality curve needs, for every test prompt, whether the frontier model answers it
 correctly. Prompts, graders and the labels schema are exactly those of the local model, so the
@@ -57,13 +59,25 @@ def frontier_spec(settings: Settings) -> ModelSpec:
     return ModelSpec(settings.frontier_model_id, "openrouter", FRONTIER_DECODE_PARAMS)
 
 
-def held_out_items(settings: Settings, pilot: int | None) -> dict[str, list[Item]]:
+def held_out_items(
+    settings: Settings, pilot: int | None, fraction: float | None = None
+) -> dict[str, list[Item]]:
+    """Test items per benchmark: all, ``pilot`` per benchmark, or a ``fraction`` of each.
+
+    Pilot and fraction samples come from the same seeded hash order, so a fraction sample
+    contains the pilot items (already paid for) whenever it is at least as large.
+    """
     roles = load_splits(settings.splits_path, known=set(REGISTRY))
     names = sorted(b for b, r in roles.items() if r == "test")
     out = {}
     for name in names:
         items = load_items(name, settings)
-        out[name] = hash_sample(items, pilot, seed=settings.seed) if pilot else items
+        if pilot:
+            out[name] = hash_sample(items, pilot, seed=settings.seed)
+        elif fraction is not None:
+            out[name] = hash_sample(items, round(len(items) * fraction), seed=settings.seed)
+        else:
+            out[name] = items
     return out
 
 
@@ -124,9 +138,11 @@ async def answer(
     return stats
 
 
-def run(settings: Settings, pilot: int | None, max_usd: float) -> dict[str, Any]:
+def run(
+    settings: Settings, pilot: int | None, max_usd: float, fraction: float | None = None
+) -> dict[str, Any]:
     spec = frontier_spec(settings)
-    by_bench = held_out_items(settings, pilot)
+    by_bench = held_out_items(settings, pilot, fraction)
     items = [it for group in by_bench.values() for it in group]
     guard = SpendGuard(max_usd, settings.frontier_price_in_per_mtok,
                        settings.frontier_price_out_per_mtok)  # fmt: skip
@@ -168,13 +184,15 @@ def run(settings: Settings, pilot: int | None, max_usd: float) -> dict[str, Any]
         "model": spec.model_id, "provider": "openrouter", "decode_params": spec.decode_params,
         "prices_per_mtok": {"in": settings.frontier_price_in_per_mtok,
                             "out": settings.frontier_price_out_per_mtok},
-        "mode": f"pilot ({pilot} per benchmark)" if pilot else "full",
+        "mode": (f"pilot ({pilot} per benchmark)" if pilot
+                 else f"fraction {fraction} of each benchmark" if fraction else "full"),
         "max_usd": max_usd, "run": stats, "wall_clock_s": round(time.perf_counter() - started, 1),
         "projection_full_test_set": projection,
         "projected_total_usd": sum(p["projected_usd"] for p in projection.values()),
         "finished_at": datetime.now(UTC).isoformat(),
     })  # fmt: skip
     out = settings.results_dir / ("frontier-pilot.json" if pilot else "frontier-run.json")
+    summary["items_by_benchmark"] = {name: len(group) for name, group in by_bench.items()}
     settings.results_dir.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(summary, indent=2) + "\n")
     log.info(
@@ -190,10 +208,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else None)
     parser.add_argument("--pilot", type=int, default=None, help="answer N prompts per benchmark")
     parser.add_argument("--max-usd", type=float, default=None, help="hard ceiling for this run")
+    parser.add_argument(
+        "--fraction", type=float, default=None, help="answer this fraction of each benchmark"
+    )
     args = parser.parse_args(argv)
     configure_logging()
     settings = get_settings()
-    summary = run(settings, args.pilot, args.max_usd or settings.frontier_max_usd_per_run)
+    max_usd = args.max_usd or settings.frontier_max_usd_per_run
+    summary = run(settings, args.pilot, max_usd, args.fraction)
     return 1 if summary["run"]["failed"] else 0
 
 
