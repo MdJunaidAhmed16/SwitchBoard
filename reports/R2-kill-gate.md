@@ -380,7 +380,6 @@ Attempt 2:
      nothing extra on the API.
   3. Stop here.
 - **Options after attempt 1** (kept for the record; option 2 was chosen):
-- **Options after attempt 1** (kept for the record; option 2 was chosen):
   1. **Write up the negative result** — "prompt-only routing with a frozen encoder learns benchmark
      provenance, not difficulty" — with the cost curve for the heuristic and always-frontier.
   2. **Change the benchmark mix** — train on many more, more varied benchmarks so that benchmark
@@ -450,3 +449,53 @@ only about 10% of traffic local, whoever picks it, and with prompt-only AUROC ar
 cannot pick that 10% much better than chance. The saving available to *any* prompt-only router is
 bounded by how often the local model is right; with a 1.5B model and these hard test benchmarks,
 that bound is small.
+
+## Attempt 3 — a stronger local model, pre-registered
+
+> Written on 2026-10-08, after the attempt-2 verdict above and **before any attempt-3 router was
+> trained or scored**. The owner chose to publish the negative result and, if the laptop GPU could
+> run it, to try a stronger local model (§5, option 2). Attempts 1 and 2 stay in this report
+> unchanged; attempt 3 is reported beside them, never instead of them.
+
+**Why.** Attempt 2's curve is capped by the local model: right on 40% of the subset against the
+frontier's 97.8%, it leaves room to keep only about a tenth of traffic local at 95% quality,
+whatever the router does.
+
+**What was already seen — disclosed.** To check that the GPU could serve a 7B model at all, it
+answered the 457 subset prompts once (a feasibility probe). That probe produced three numbers and
+nothing else — no router was trained or scored:
+
+| On the 457-prompt subset | Qwen2.5-1.5B (attempts 1-2) | Qwen2.5-7B-Instruct-AWQ |
+| --- | --- | --- |
+| Local accuracy | 40.0% | 63.9% |
+| Oracle router (keeps local exactly the prompts escalation cannot improve): cost vs always-frontier | 65.9% | 44.2% |
+| Random routing at 95% retention (expected): cost vs always-frontier | 91.6% | 85.7% |
+
+So the 7B raises the ceiling on savings; whether a prompt-only router can reach any of it is what
+attempt 3 tests. Those probe generations are cached and reused by the full relabel, so the subset's
+labels in attempt 3 are exactly the probe's.
+
+**What changes — one thing.** The local model becomes `Qwen/Qwen2.5-7B-Instruct-AWQ` @
+`b25037543e` (Apache-2.0; the official 4-bit AWQ build, because the bf16 weights do not fit the
+8 GB GPU), served by the same vLLM 0.30.0 in float16 with 16 sequences in flight (the most that
+leaves enough KV cache on this GPU). Every benchmark is relabelled with it.
+
+**What is fixed (identical to attempt 2).** Benchmarks, splits and sampling; prompts, decoding
+(greedy, 1,024 new tokens, same `decode_params_hash`) and context length (4,096); graders and
+sandbox; router code, encoder, hyperparameters, seeds and benchmark-balanced weights (`ATTEMPTS[3]`
+differs from `ATTEMPTS[2]` only in its local model, enforced by a unit test); the frontier answers
+for the 457-prompt subset (reused, no new API spend); the cost model, including the local price —
+OpenRouter's listed price for `qwen/qwen-2.5-7b-instruct`, which was a conservative stand-in for
+the 1.5B and is now the like-for-like price for this model; and how every criterion is decided.
+
+**How attempt 3 is judged.** Exactly as attempt 2: criterion 3 (test-AUROC interval lower end
+> 0.55) for v0 and for each v1 seed; criteria 1 and 2 on the subset as defined above; v1 beats v0
+only by more than its seed spread; the operating point at 95% retention, labelled in-sample; and the
+sensitivity check at zero and five times the local price. The kill gate passes only if a learned
+router passes all three criteria on every seed reported for it.
+
+**Known weaknesses, stated up front.** This is a third attempt after two failures — a forking path,
+and the write-up will say so. The local model was changed after seeing that attempt 2's saving was
+capped by local accuracy; the probe showed the 7B's subset accuracy before this was written, but no
+router result. AWQ quantisation means this is not the bf16 7B; its answers are what is labelled,
+and that is the model that would be served.
