@@ -82,8 +82,19 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 - [x] Truncation rate for R1 — 22 prompts (0.21%) over 512 tokens
 - [x] `make train-v0` → `results/router-v0.json`, scores parquet, generated R2 tables; reproducible across reruns
 - [x] **Gate criterion 3 (pre-registered: v0 test AUROC 95% CI low > 0.55): FAILED.** v0 also significantly below the heuristic. Diagnostics show v0 learned benchmark provenance
-- [ ] **Owner decision after the failed gate:** negative-result write-up · change the benchmark mix / re-weight training · change the local model (see R2 §5). Serving (Phase 4) is not started
-- [ ] Frontier backend via OpenRouter (OpenAI-compatible, same client shape as vLLM) + spend guard; pilot cost estimate shown to the owner before the full run; frontier answers for test prompts, cached — needed for the curve under every option
+- [x] **Owner decision after the failed gate (2026-10-05):** attempt 2 — change the benchmark mix + re-weight training — and also evaluate the fine-tuned v1. Serving (Phase 4) still not started
+- [x] Attempt 2 pre-registered in R2 before any attempt-2 result (`0154ccf`)
+- [x] Six training benchmarks added (GSM-Hard, SVAMP, AQuA-RAT, CommonsenseQA, MedMCQA, QASC; 8,016 prompts); grader self-check 0 failures
+- [x] Attempts defined in code (`router/attempts.py`); benchmark-balanced weights; attempt 1 still reproduces exactly (`make train-v0`)
+- [x] v1 fine-tuned router + temperature scaling (`router/v1.py`, `router/calibrate.py`); overfit-one-batch, validation-only calibration and seed-determinism tests
+- [x] `make train-attempt2`: heuristic, random, v0 and v1 ×3 seeds with the pre-registered comparisons
+- [x] Label the six new benchmarks — 8,016 labels, 0 failed; unparsable-answer scan: residual answer-by-text misses ≤ 11 (0.06%)
+- [ ] Owner spot-check of the new benchmarks' labels (no separate 30-item round was run)
+- [x] `make train-attempt2` (54 min; length-grouped batching + per-seed checkpoints after the first run was lost) — written up in R2 beside attempt 1
+- [x] **Attempt 2 verdict:** provenance shortcut removed; v0 still fails criterion 3; **v1 passes criterion 3 on all seeds and beats v0 beyond the seed spread, but ties the heuristic** (paired intervals include 0); calibration improves but test ECE stays above 0.05
+- [x] Frontier backend via OpenRouter (OpenAI-compatible, same client shape as vLLM) + spend guard that refuses before sending; `make frontier-pilot`, `make frontier MAX_USD=…`
+- [x] Frontier pilot: 30 prompts, $0.23 (computed cost matches OpenRouter's charge exactly), projected full test set ≈ $14.75
+- [ ] **Owner approval** for the full frontier run (`make frontier MAX_USD=20`) — needed for gate criteria 1–2 and the cost curve
 - [ ] Cost model (pinned prices/GPU rate in config) + unit test against hand-computed value
 - [ ] Threshold sweep 0→1 step 0.01; monotonicity test (at-threshold monotonicity ✓ in unit tests); reproducibility test
 - [ ] Gate criteria 1–2 (curve vs heuristic, vs random at matched escalation)
