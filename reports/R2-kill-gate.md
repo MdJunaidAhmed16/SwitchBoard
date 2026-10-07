@@ -489,7 +489,7 @@ OpenRouter's listed price for `qwen/qwen-2.5-7b-instruct`, which was a conservat
 the 1.5B and is now the like-for-like price for this model; and how every criterion is decided.
 
 **How attempt 3 is judged.** Exactly as attempt 2: criterion 3 (test-AUROC interval lower end
-> 0.55) for v0 and for each v1 seed; criteria 1 and 2 on the subset as defined above; v1 beats v0
+above 0.55) for v0 and for each v1 seed; criteria 1 and 2 on the subset as defined above; v1 beats v0
 only by more than its seed spread; the operating point at 95% retention, labelled in-sample; and the
 sensitivity check at zero and five times the local price. The kill gate passes only if a learned
 router passes all three criteria on every seed reported for it.
