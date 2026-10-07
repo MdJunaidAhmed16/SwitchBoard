@@ -94,7 +94,8 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 - [x] **Attempt 2 verdict:** provenance shortcut removed; v0 still fails criterion 3; **v1 passes criterion 3 on all seeds and beats v0 beyond the seed spread, but ties the heuristic** (paired intervals include 0); calibration improves but test ECE stays above 0.05
 - [x] Frontier backend via OpenRouter (OpenAI-compatible, same client shape as vLLM) + spend guard that refuses before sending; `make frontier-pilot`, `make frontier MAX_USD=…`
 - [x] Frontier pilot: 30 prompts, $0.23 (computed cost matches OpenRouter's charge exactly), projected full test set ≈ $14.75
-- [ ] **Owner approval** for the full frontier run (`make frontier MAX_USD=20`) — needed for gate criteria 1–2 and the cost curve
+- [x] Owner budget: **$4.00 total** on the key → full run not affordable; budget-limited 20% stratified subset pre-registered in R2
+- [ ] Frontier answers for the 20% subset (`make frontier FRACTION=0.2 MAX_USD=3.5`, est. $2.73 new spend)
 - [ ] Cost model (pinned prices/GPU rate in config) + unit test against hand-computed value
 - [ ] Threshold sweep 0→1 step 0.01; monotonicity test (at-threshold monotonicity ✓ in unit tests); reproducibility test
 - [ ] Gate criteria 1–2 (curve vs heuristic, vs random at matched escalation)
@@ -153,6 +154,7 @@ Decisions made while building, recorded here so they do not live only in chat.
 | 2026-10-03 | Router encoder `BAAI/bge-base-en-v1.5` @ `a5beb1e` for both v0 (frozen) and v1 (fine-tuned) | 110M, MIT, 512 tokens, strong frozen embeddings and fine-tunable; one backbone makes v1's gain over v0 the value of fine-tuning alone |
 | 2026-10-03 | Kill-gate criterion 3 made concrete before the first run: lower end of v0's 95% bootstrap interval for test AUROC > 0.55 | "Meaningfully above 0.5" needs a number fixed in advance, or it can be argued after the fact |
 | 2026-10-03 | huggingface-hub 2.0.0 → 1.33.0 | tokenizers 0.23 (needed by transformers 5.18) requires hub < 2.0; the download calls used are unchanged |
+| 2026-10-07 | Cost curve and gate criteria 1–2 on a 20% stratified, hash-sampled subset of the test set (457 prompts), same frontier model | Owner's $4 cap; the full test set was projected at ~$14.75. Keeping Opus 5.5 preserves the meaning of always-frontier quality; intervals widen and are reported |
 | 2026-10-02 | Keep HumanEval at all 164 items as a test track | Owner decision. It is below the "several hundred rows" rule, so its per-benchmark figures are reported with confidence intervals, and the code track's test weight also comes from BBH/MATH alongside it. Revisit only if its interval is too wide to say anything |
 
 ## Open questions for the owner

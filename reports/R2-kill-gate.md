@@ -263,6 +263,26 @@ clearly ahead of the heuristic; it is behind on HumanEval. Whether a tie on AURO
 loss in money depends on *where* each router's errors fall, which only the cost-quality curve can
 show.
 
+## Cost-quality evaluation on a budget-limited subset — pre-registered
+
+> Written on 2026-10-07, **before any frontier answer beyond the 30-prompt pilot was collected**.
+
+The owner capped frontier spend at **$4.00** on the OpenRouter key ($0.23 already used by the
+pilot). The pilot projected about $14.75 for all 2,284 test prompts, so the cost-quality curve and
+gate criteria 1–2 are evaluated on a **stratified subset** instead:
+
+- **20% of each test benchmark**, chosen by the same seeded hash order as every other sample in the
+  project (BBH 324, MATH 100, HumanEval 33 — 457 prompts). Because it is the same order, the subset
+  contains the 30 pilot prompts, which are reused rather than paid for again.
+- Each benchmark keeps its share of the full test set, so the pooled curve estimates the full-test
+  curve; it is reported **with bootstrap intervals**, which are wider than a full run's would be.
+- **The frontier model is unchanged** (Claude Opus 5.5). A cheaper model would have fitted the
+  budget on the full set but would have changed what "always-frontier quality" means.
+- Every router is evaluated on exactly the same subset; the full-test AUROC results above are
+  unaffected.
+- Spend controls: a $3.50 ceiling in the spend guard for this run (worst case $3.73 with the pilot,
+  under the $4.00 key limit, which remains a hard backstop), 3 requests in flight.
+
 ## 4. What surprised me
 
 - **The frozen encoder lost to the two-feature heuristic** on held-out benchmarks, and the paired
