@@ -1,5 +1,14 @@
 {
   "benchmarks": {
+    "aqua_rat": {
+      "excluded": {},
+      "license_per_card": "Apache-2.0",
+      "limit": 1500,
+      "limited_run": false,
+      "n_items": 1500,
+      "repo_id": "deepmind/aqua_rat",
+      "revision": "33301c6a050c96af81f63cad5562cb5363e88971"
+    },
     "arc_challenge": {
       "excluded": {},
       "license_per_card": "CC-BY-SA-4.0",
@@ -18,6 +27,15 @@
       "repo_id": "lukaemon/bbh",
       "revision": "982bb89fd79532a8ac676a61fc42eb1aeec63f99"
     },
+    "commonsense_qa": {
+      "excluded": {},
+      "license_per_card": "MIT",
+      "limit": 1500,
+      "limited_run": false,
+      "n_items": 1500,
+      "repo_id": "tau/commonsense_qa",
+      "revision": "94630fe30dad47192a8546eb75f094926d47e155"
+    },
     "gsm8k": {
       "excluded": {},
       "license_per_card": "MIT",
@@ -26,6 +44,15 @@
       "n_items": 3000,
       "repo_id": "openai/gsm8k",
       "revision": "740312add88f781978c0658806c59bc2815b9866"
+    },
+    "gsm_hard": {
+      "excluded": {},
+      "license_per_card": "MIT",
+      "limit": null,
+      "limited_run": false,
+      "n_items": 1016,
+      "repo_id": "reasoning-machines/gsm-hard",
+      "revision": "960448f73503112d4226baeb8eb41d3fb5ae2506"
     },
     "humaneval": {
       "excluded": {},
@@ -56,6 +83,15 @@
       "repo_id": "google-research-datasets/mbpp",
       "revision": "4bb6404fdc6cacfda99d4ac4205087b89d32030c"
     },
+    "medmcqa": {
+      "excluded": {},
+      "license_per_card": "Apache-2.0",
+      "limit": 1500,
+      "limited_run": false,
+      "n_items": 1500,
+      "repo_id": "openlifescienceai/medmcqa",
+      "revision": "91c6572c454088bf71b679ad90aa8dffcd0d5868"
+    },
     "mmlu": {
       "excluded": {},
       "license_per_card": "MIT",
@@ -64,6 +100,24 @@
       "n_items": 3000,
       "repo_id": "cais/mmlu",
       "revision": "c30699e8356da336a370243923dbaf21066bb9fe"
+    },
+    "qasc": {
+      "excluded": {},
+      "license_per_card": "CC-BY-4.0",
+      "limit": 1500,
+      "limited_run": false,
+      "n_items": 1500,
+      "repo_id": "allenai/qasc",
+      "revision": "a34ba204eb9a33b919c10cc08f4f1c8dae5ec070"
+    },
+    "svamp": {
+      "excluded": {},
+      "license_per_card": "MIT",
+      "limit": null,
+      "limited_run": false,
+      "n_items": 1000,
+      "repo_id": "ChilleD/SVAMP",
+      "revision": "5e0bf1e5e7c0e9c4bc39180d224f41f3f801b7ef"
     }
   },
   "decode_params": {
@@ -301,16 +355,94 @@
       "n_items": 1620,
       "n_labelled": 1620,
       "started_at": "2026-10-02T17:44:47.556335+00:00"
+    },
+    {
+      "benchmark": "gsm_hard",
+      "cache_hits": 117,
+      "excluded": 0,
+      "failed": 0,
+      "generated": 899,
+      "generation_wall_clock_s": 207.3,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 1016,
+      "n_labelled": 1016,
+      "started_at": "2026-10-06T16:55:41.152451+00:00"
+    },
+    {
+      "benchmark": "svamp",
+      "cache_hits": 0,
+      "excluded": 0,
+      "failed": 0,
+      "generated": 1000,
+      "generation_wall_clock_s": 119.5,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 1000,
+      "n_labelled": 1000,
+      "started_at": "2026-10-06T16:59:12.774319+00:00"
+    },
+    {
+      "benchmark": "aqua_rat",
+      "cache_hits": 0,
+      "excluded": 0,
+      "failed": 0,
+      "generated": 1500,
+      "generation_wall_clock_s": 431.3,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 1500,
+      "n_labelled": 1500,
+      "started_at": "2026-10-06T17:01:14.930021+00:00"
+    },
+    {
+      "benchmark": "commonsense_qa",
+      "cache_hits": 0,
+      "excluded": 0,
+      "failed": 0,
+      "generated": 1500,
+      "generation_wall_clock_s": 124.4,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 1500,
+      "n_labelled": 1500,
+      "started_at": "2026-10-06T17:08:28.062825+00:00"
+    },
+    {
+      "benchmark": "medmcqa",
+      "cache_hits": 0,
+      "excluded": 0,
+      "failed": 0,
+      "generated": 1500,
+      "generation_wall_clock_s": 217.4,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 1500,
+      "n_labelled": 1500,
+      "started_at": "2026-10-06T17:10:35.583689+00:00"
+    },
+    {
+      "benchmark": "qasc",
+      "cache_hits": 0,
+      "excluded": 0,
+      "failed": 0,
+      "generated": 1500,
+      "generation_wall_clock_s": 182.5,
+      "host": "Junaid",
+      "limited_run": false,
+      "n_items": 1500,
+      "n_labelled": 1500,
+      "started_at": "2026-10-06T17:14:15.084245+00:00"
     }
   ],
   "sandbox_image": "python:3.11-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e",
   "software": {
     "httpx": "0.28.1",
-    "huggingface_hub": "2.0.0",
+    "huggingface_hub": "1.33.0",
     "pandas": "3.0.6",
     "pyarrow": "25.0.1",
     "python": "3.11.16",
-    "switchboard_commit": "5a9f100ea40fe43577bdb4a9e07889d7a51b6bbc-dirty"
+    "switchboard_commit": "487a71d05b89ef44c58e86f9a927a4b2e9905631-dirty"
   },
   "vllm": {
     "gpu_memory_utilization": 0.85,

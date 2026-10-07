@@ -4,6 +4,13 @@ train:
   - gsm8k
   - mmlu
   - mbpp
+  # Attempt 2 additions (pre-registered in reports/R2-kill-gate.md, 2026-10-05)
+  - gsm_hard
+  - svamp
+  - aqua_rat
+  - commonsense_qa
+  - medmcqa
+  - qasc
 val:
   - arc_challenge
 test:

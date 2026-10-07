@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     frontier_model_id: str = "anthropic/claude-opus-5.5"
     frontier_price_in_per_mtok: float = 4.00
     frontier_price_out_per_mtok: float = 20.00
+    # --- Local cost (Phase 2 cost model) -----------------------------------------------------
+    # Market price of serving a small open model of the local model's family, used as the cost of
+    # a local answer. Source: OpenRouter's listed price for qwen/qwen-2.5-7b-instruct, the smallest
+    # Qwen2.5 model it serves (checked 2026-10-07). The local model is the smaller 1.5B, so this
+    # overstates local cost — the conservative direction, which makes routing look less attractive.
+    local_price_in_per_mtok: float = 0.10
+    local_price_out_per_mtok: float = 0.20
+
+    # Hard ceiling on what one frontier run may spend (09-security, cost guardrail 4). A run that
+    # would exceed it stops, keeps what it has, and writes partial results. Override per run.
+    frontier_max_usd_per_run: float = Field(default=2.0, gt=0)
+    frontier_concurrency: int = Field(default=8, ge=1)
     # Read from OPENROUTER_API_KEY (environment or the gitignored .env). Never logged or printed.
     openrouter_api_key: SecretStr | None = Field(
         default=None,

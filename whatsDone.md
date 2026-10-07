@@ -594,3 +594,29 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
   model. The frontier answers are needed for the cost curve under every option.
 - **Verified:** 201 unit tests; results identical across two runs.
 
+### 2026-10-05 → 2026-10-07 — Attempt 2, fine-tuned v1, and the frontier pilot
+- **Owner's decision:** a second attempt (wider training mix + re-weighting) and evaluate the
+  fine-tuned router as well. The design was **pre-registered in R2 before any result existed**.
+- **Six training benchmarks added** (GSM-Hard, SVAMP, AQuA-RAT, CommonsenseQA, MedMCQA, QASC):
+  8,016 new labels on the laptop GPU, none failed. GSM-Hard scores 40.7% against GSM8K's 80.9% on
+  prompts that read alike — the contradiction needed to break the shortcut. A scan for unparsable
+  answers found mostly genuine non-answers; answer-by-text misses are at most 0.06% of labels.
+- **New code:** attempts defined in code (attempt 1 still reproduces exactly); benchmark-balanced
+  training weights; **v1**, the same encoder fine-tuned end to end over 3 seeds; temperature scaling
+  on validation; an OpenRouter frontier client whose spend guard refuses a request *before* sending
+  it; `make train-attempt2`, `make frontier-pilot`, `make frontier MAX_USD=…`.
+- **Problem and fix:** the first attempt-2 run was killed with the session after 50 minutes and
+  lost all progress. Training now batches prompts of similar length (several times faster: ~17
+  minutes per seed), checkpoints each finished seed, logs progress every 100 steps, and runs
+  detached so it survives the session.
+- **Results** (from `results/router-attempt2.json`): heuristic test AUROC 0.607; v0 0.564 (up from
+  0.549, still failing criterion 3); **v1 0.596 mean over three seeds**, passing criterion 3 on every
+  seed and beating v0 by more than its seed spread — but **tied with the heuristic** (every paired
+  interval includes zero). v1 leads on MATH, trails on HumanEval. Calibration improves on every seed
+  but test ECE stays above the 0.05 target.
+- **Frontier pilot:** Claude Opus 5.5 answered 30 test prompts for $0.23; the cost computed from
+  tokens × pinned prices matched OpenRouter's charge exactly. Projected cost for all 2,284 test
+  prompts: about $14.75.
+- **Verified:** 224 unit tests; attempt-1 numbers reproduce exactly after the refactor.
+- **Next:** with the owner's approval, the full frontier run, then the cost model, the threshold
+  sweep and the cost-quality curve — which decide whether v1's tie on AUROC is a saving in money.

@@ -32,6 +32,14 @@ def test_hash_sample_is_deterministic_and_seed_dependent() -> None:
     assert len(a) == 10
 
 
+def test_larger_hash_sample_contains_the_smaller_one() -> None:
+    # The frontier fraction run relies on this to reuse the (already paid) pilot answers.
+    items = [_item(i) for i in range(500)]
+    small = {it.item_id for it in hash_sample(items, 10, seed=0)}
+    large = {it.item_id for it in hash_sample(items, 100, seed=0)}
+    assert small <= large
+
+
 def test_hash_sample_keeps_everything_under_the_limit() -> None:
     items = [_item(i) for i in range(5)]
     assert hash_sample(items, 10, seed=0) == items

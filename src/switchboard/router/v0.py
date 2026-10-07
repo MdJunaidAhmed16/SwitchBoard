@@ -14,7 +14,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 
 from switchboard.router.encoder import Embedder
-from switchboard.router.interface import Scores
+from switchboard.router.interface import Scores, sample_weights
 from switchboard.router.metrics import auroc
 
 C_GRID: tuple[float, ...] = (0.01, 0.1, 1.0, 10.0)
@@ -39,9 +39,10 @@ class V0Router:
         y_train = train["label"].astype(int).to_numpy()
         x_val = self.embedder.embed(list(val["router_text"]))
         y_val = val["label"].astype(int).to_numpy()
+        weights = sample_weights(train)
         best: tuple[float, float, LogisticRegression] | None = None
         for c in self.c_grid:
-            model = self._new_model(c).fit(x_train, y_train)
+            model = self._new_model(c).fit(x_train, y_train, sample_weight=weights)
             score = auroc(y_val, model.predict_proba(x_val)[:, 1])
             self.val_auroc_by_c[c] = score
             if best is None or score > best[0]:
@@ -53,7 +54,9 @@ class V0Router:
         """Fit with a given C and no tuning (used for the row-split comparison)."""
         x_train = self.embedder.embed(list(train["router_text"]))
         self.chosen_c = c
-        self._model = self._new_model(c).fit(x_train, train["label"].astype(int).to_numpy())
+        self._model = self._new_model(c).fit(
+            x_train, train["label"].astype(int).to_numpy(), sample_weight=sample_weights(train)
+        )
 
     def predict_proba(self, texts: Sequence[str]) -> Scores:
         if self._model is None:

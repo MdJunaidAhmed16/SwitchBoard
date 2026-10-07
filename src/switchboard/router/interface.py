@@ -16,12 +16,20 @@ from numpy.typing import NDArray
 Scores = NDArray[np.float64]
 
 
+def sample_weights(train: pd.DataFrame) -> NDArray[np.float64] | None:
+    """The optional per-example training weights, or None for an unweighted fit."""
+    if "weight" not in train.columns:
+        return None
+    return train["weight"].to_numpy(dtype=np.float64)
+
+
 @runtime_checkable
 class Router(Protocol):
     name: str
 
     def fit(self, train: pd.DataFrame, val: pd.DataFrame) -> None:
-        """Learn from ``train`` (columns ``router_text``, ``label``); tune on ``val`` only."""
+        """Learn from ``train`` (columns ``router_text``, ``label``, optional ``weight``); tune
+        on ``val`` only."""
         ...
 
     def predict_proba(self, texts: Sequence[str]) -> Scores:

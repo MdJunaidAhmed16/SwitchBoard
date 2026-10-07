@@ -21,7 +21,7 @@ LOCAL_MODEL    ?= $(shell $(RUN) python -c "from switchboard.config import get_s
 LOCAL_REVISION ?= $(shell $(RUN) python -c "from switchboard.config import get_settings as g; print(g().local_model_revision)")
 
 .PHONY: help install lint format typecheck test test-docker test-integration check \
-        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample train-v0
+        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample train-v0 train-attempt2 frontier-pilot frontier sweep
 
 help:  ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -84,8 +84,21 @@ labels-summary:  ## Per-benchmark accuracy / base rate → results/labels-summar
 
 # --- Phase 2: router v0 and the kill gate -------------------------------------------------------
 
-train-v0:  ## Fit heuristic, random and v0 routers; AUROC on the held-out split → R2 report
-	$(RUN) python -m switchboard.router.evaluate
+train-v0:  ## Attempt 1: heuristic, random, v0 on GSM8K/MMLU/MBPP → R2 report (reproduction)
+	$(RUN) python -m switchboard.router.evaluate --attempt 1
+
+train-attempt2:  ## Attempt 2: wider mix, balanced weights, v0 + fine-tuned v1 x3 seeds (GPU) → R2
+	$(RUN) python -m switchboard.router.evaluate --attempt 2
+
+frontier-pilot:  ## Pilot: Claude answers 10 test prompts per benchmark; projects full cost (spends ≤ $2)
+	$(RUN) python -m switchboard.labeling.frontier --pilot 10
+
+frontier:  ## Claude answers test prompts (cached). MAX_USD=<ceiling> required; FRACTION=0.2 optional
+	@test -n "$(MAX_USD)" || { echo "set MAX_USD, e.g. make frontier MAX_USD=25"; exit 1; }
+	$(RUN) python -m switchboard.labeling.frontier --max-usd $(MAX_USD) $(if $(FRACTION),--fraction $(FRACTION))
+
+sweep:  ## Threshold sweep → cost-quality curve, gate criteria 1-2, sensitivity → R2 + chart
+	$(RUN) python -m switchboard.bench.sweep
 
 review-sample:  ## Draw 30 random (prompt, generation, label) triples for the manual gate
 	$(RUN) python -m switchboard.labeling.review --n 30 --seed $(SEED)
