@@ -19,11 +19,12 @@ VLLM_MAX_LEN   ?= 4096
 VLLM_MAX_SEQS  ?= 32
 # float16 for AWQ (4-bit) checkpoints
 VLLM_DTYPE     ?= bfloat16
+ATTEMPT        ?= 2
 LOCAL_MODEL    ?= $(shell $(RUN) python -c "from switchboard.config import get_settings as g; print(g().local_model_id)")
 LOCAL_REVISION ?= $(shell $(RUN) python -c "from switchboard.config import get_settings as g; print(g().local_model_revision)")
 
 .PHONY: help install lint format typecheck test test-docker test-integration check \
-        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample train-v0 train-attempt2 frontier-pilot frontier sweep readme
+        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample train-v0 train-attempt2 train-attempt3 frontier-pilot frontier sweep readme
 
 help:  ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -92,6 +93,9 @@ train-v0:  ## Attempt 1: heuristic, random, v0 on GSM8K/MMLU/MBPP → R2 report 
 train-attempt2:  ## Attempt 2: wider mix, balanced weights, v0 + fine-tuned v1 x3 seeds (GPU) → R2
 	$(RUN) python -m switchboard.router.evaluate --attempt 2
 
+train-attempt3:  ## Attempt 3: attempt 2 with the Qwen2.5-7B-Instruct-AWQ labels (GPU) → R2
+	$(RUN) python -m switchboard.router.evaluate --attempt 3
+
 frontier-pilot:  ## Pilot: Claude answers 10 test prompts per benchmark; projects full cost (spends ≤ $2)
 	$(RUN) python -m switchboard.labeling.frontier --pilot 10
 
@@ -99,8 +103,8 @@ frontier:  ## Claude answers test prompts (cached). MAX_USD=<ceiling> required; 
 	@test -n "$(MAX_USD)" || { echo "set MAX_USD, e.g. make frontier MAX_USD=25"; exit 1; }
 	$(RUN) python -m switchboard.labeling.frontier --max-usd $(MAX_USD) $(if $(FRACTION),--fraction $(FRACTION))
 
-sweep:  ## Threshold sweep → cost-quality curve, gate criteria 1-2, sensitivity → R2 + chart
-	$(RUN) python -m switchboard.bench.sweep
+sweep:  ## Threshold sweep → cost-quality curve, gate criteria 1-2 → R2 + chart. ATTEMPT=2|3
+	$(RUN) python -m switchboard.bench.sweep --attempt $(ATTEMPT)
 
 readme:  ## Regenerate the README's numbers and the reliability diagram from results/
 	$(RUN) python -m switchboard.bench.readme

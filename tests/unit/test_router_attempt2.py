@@ -1,5 +1,6 @@
 """Attempt 2 machinery: balanced weights, weighted fits, calibration and the fine-tuned v1."""
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +8,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from switchboard.config import Settings
+from switchboard.labeling.generate import labels_path
 from switchboard.router.attempts import ATTEMPTS, balanced_weights
 from switchboard.router.baselines import HeuristicRouter
 from switchboard.router.calibrate import apply_temperature, fit_temperature
@@ -91,6 +94,18 @@ def test_attempt_2_uses_every_train_benchmark_with_weights() -> None:
     data = _prepare(_data(), ATTEMPTS[2])
     assert set(data.train["benchmark"]) == {"gsm8k", "mmlu", "qasc"}
     assert "weight" in data.train.columns
+
+
+def test_attempt_3_is_attempt_2_with_another_local_model() -> None:
+    two, three = ATTEMPTS[2], ATTEMPTS[3]
+    assert replace(three, number=2, local_model=None) == two
+    settings = Settings()
+    # Attempts 1 and 2 keep the default model; attempt 3 reads its own labels file.
+    assert ATTEMPTS[2].settings_for(settings) is settings
+    moved = three.settings_for(settings)
+    assert (moved.local_model_id, moved.local_model_revision) == three.local_model
+    assert labels_path(moved) != labels_path(settings)
+    assert settings.local_model_id == "Qwen/Qwen2.5-1.5B-Instruct"  # the original is unchanged
 
 
 # --- Temperature scaling -------------------------------------------------------------------------
