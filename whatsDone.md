@@ -657,3 +657,17 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
   reported — OpenRouter had not finished recording the run when it was read. $3.47 equals tokens ×
   list price for the 457 answers.
 - **Verified:** 238 unit tests, ruff, strict mypy; `make readme` is idempotent.
+
+### 2026-10-08 — Attempt 3 started: a stronger local model (paused overnight)
+- **Feasibility probe:** Qwen2.5-7B-Instruct in its official 4-bit AWQ build runs on the 8 GB laptop
+  GPU (5.3 GiB of weights, float16, 16 sequences in flight; 32 leaves too little KV cache). On the
+  457 subset prompts it is right 63.9% of the time against the 1.5B's 40.0%, which lowers the oracle
+  router's cost from 65.9% to 44.2% of always-frontier.
+- **Pre-registered in R2 before any attempt-3 router exists:** attempt 3 is attempt 2 with only the
+  local model changed; the probe numbers are disclosed. `ATTEMPTS[3]` pins the model, and a unit test
+  checks it differs from attempt 2 in nothing else. The sweep now takes `--attempt`; attempt 2's
+  outputs reproduce byte for byte. `make vllm` takes `VLLM_DTYPE`.
+- **Relabel:** about 13,500 of 18,444 prompts generated (10 of 13 benchmarks labelled) at ~2 prompts
+  per second, then paused overnight. Every generation is cached, so resuming continues where it
+  stopped. Same single exclusion as before (`mbpp-0493`, prompt too long).
+- **Next:** finish the relabel (~30 min), `make train-attempt3`, `make sweep ATTEMPT=3`, verdict.
