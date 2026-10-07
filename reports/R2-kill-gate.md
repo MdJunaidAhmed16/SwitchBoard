@@ -1,12 +1,13 @@
 # R2 — Router v0 and the kill gate
 
-> Status: **two attempts run; no learned router yet beats the heuristic.** Attempt 1 (v0 on three
-> benchmarks) failed criterion 3 and was significantly worse than the length-and-keyword heuristic.
-> Attempt 2 (wider mix, balanced weights, plus fine-tuned v1) removed the provenance shortcut: v1
-> passes criterion 3 on every seed and beats v0 beyond the seed spread, but is **statistically
-> tied** with the heuristic. Criteria 1–2 (the cost curve) need the frontier answers. No serving
-> work is started. Tables between GENERATED markers are written by `make train-v0` /
-> `make train-attempt2`; do not edit them by hand.
+> Status: **kill gate FAILED — Phase 2 is complete as a negative result.** Two pre-registered
+> attempts: no learned router beats the length-and-keyword heuristic, and on the cost-quality
+> curve (457-prompt stratified test subset, $4 budget) every router — learned, heuristic or random —
+> sits close to the straight line between always-local and always-frontier. At 95% of
+> always-frontier quality the best routers cost about 90–92% of always-frontier; the learned
+> routers' small edge over the heuristic is not significant. No serving work is started. Tables
+> between GENERATED markers are written by `make train-v0`, `make train-attempt2` and
+> `make sweep`; do not edit them by hand.
 
 ## 1. What was measured
 
@@ -350,6 +351,11 @@ Attempt 2:
 - **Calibration does not transfer across base rates.** Temperature scaling on ARC-Challenge (68.8%
   base rate) roughly halves test ECE but cannot bring it under 0.05 on test benchmarks at 41.2%,
   as R1 predicted.
+- **AUROC gains did not become money.** v1's clear AUROC gain over v0 and its tie with the heuristic
+  both flatten into curves that sit within a few cents per 1,000 prompts of random routing. At these
+  base rates, ranking quality matters far less than how often the local model is right at all.
+- **The frontier is nearly perfect on these benchmarks** (97.8% on the subset), so even a perfect
+  router could keep local only the prompts the 1.5B model gets right — about 40%.
 - **Engineering lesson:** the first attempt-2 run was killed with the session after 50 minutes and
   lost everything; length-grouped batching made training several times faster, and per-seed
   checkpoints mean an interruption now costs at most one seed.
@@ -362,8 +368,18 @@ Attempt 2:
   on the router or the local model, so they are needed for the cost-quality curve whichever option
   is chosen, including a negative-result write-up.
 - **Attempt 2 settled the provenance question** and produced a learned router (v1) that ties the
-  heuristic. The deciding evidence is now the cost-quality curve, which needs the frontier answers
-  for all 2,284 test prompts (pilot projection: about $15).
+  heuristic on AUROC; the cost-quality curve then showed no router clearly better than random
+  routing. **The kill gate fails, and per 11-roadmap serving is not built.**
+- **Options now** (owner's decision):
+  1. **Publish the negative result** (recommended): "prompt-only routing between a 1.5B local
+     model and Claude Opus 5.5 saves under ~10% at 95% quality; a learned router ties a
+     two-feature heuristic" — with both attempts, the provenance finding and the curve.
+  2. **A stronger local model** — the lever this result points at, since the saving is capped by
+     how often the local model is right. It needs new labels (free, on the laptop GPU) and the
+     same router pipeline; the **frontier answers already collected are reused**, so it costs
+     nothing extra on the API.
+  3. Stop here.
+- **Options after attempt 1** (kept for the record; option 2 was chosen):
 - **Options after attempt 1** (kept for the record; option 2 was chosen):
   1. **Write up the negative result** — "prompt-only routing with a frozen encoder learns benchmark
      provenance, not difficulty" — with the cost curve for the heuristic and always-frontier.
@@ -374,3 +390,63 @@ Attempt 2:
   3. **Change the local model** — does not address the provenance shortcut by itself.
   4. **Go straight to the fine-tuned v1** — not recommended without option 2: fine-tuning on the
      same three benchmarks would most likely learn provenance even more strongly.
+
+<!-- BEGIN GENERATED: sweep-attempt2 -->
+Evaluation subset: 457 test prompts (bbh 324, humaneval 33, math 100).
+
+- **Always-frontier:** quality 97.8%, cost $7.58 per 1,000 prompts.
+- **Always-local:** quality 40.0% (40.9% of always-frontier), cost $0.08 per 1,000 prompts.
+
+**Operating point** — cheapest τ retaining ≥ 95% of always-frontier quality (chosen and reported on this subset: in-sample):
+
+| Router | τ | Kept local | Quality retained | Cost vs always-frontier |
+| --- | ---: | ---: | ---: | ---: |
+| heuristic | 0.59 | 11.4% | 95.1% | 91.8% |
+| random | 0.92 | 7.9% | 95.7% | 93.0% |
+| v0 | 0.55 | 7.0% | 96.6% | 93.9% |
+| v1_s0 | 0.72 | 9.0% | 95.1% | 91.3% |
+| v1_s1 | 0.67 | 10.7% | 95.1% | 90.4% |
+| v1_s2 | 0.65 | 10.5% | 95.3% | 90.5% |
+
+**Gate criteria 1-2** (pre-registered definitions):
+
+| Router | C1: dominates heuristic, 90-99% retention | C2: beats random at matched escalation | Cost - heuristic at 95% (per 1,000 prompts, 95% CI) |
+| --- | --- | --- | --- |
+| v0 | FAIL | FAIL | +0.16 [-0.25, +0.36] |
+| v1_s0 | FAIL | PASS | -0.04 [-0.38, +0.29] |
+| v1_s1 | PASS | FAIL | -0.11 [-0.44, +0.19] |
+| v1_s2 | FAIL | FAIL | -0.10 [-0.47, +0.17] |
+
+**Sensitivity to the local price** (criterion 1 / criterion 2 per router):
+
+| Local price x | v0 | v1_s0 | v1_s1 | v1_s2 |
+| --- | --- | --- | --- | --- |
+| 0.0 | F/F | F/P | P/F | F/F |
+| 1.0 | F/F | F/P | P/F | F/F |
+| 5.0 | F/F | F/P | P/F | F/F |
+
+Chart: `reports/figures/cost-quality-attempt2.png`.
+<!-- END GENERATED: sweep-attempt2 -->
+
+![Cost-quality curve, attempt 2](figures/cost-quality-attempt2.png)
+
+### Cost-quality verdict (criteria 1–2)
+
+| | v0 | v1 seed 0 | v1 seed 1 | v1 seed 2 |
+| --- | --- | --- | --- | --- |
+| C1: dominates the heuristic over 90–99% retention | FAIL | FAIL (costlier at 96–99%) | **PASS** | FAIL (costlier at 99%) |
+| C2: beats random at every escalation rate 10–90% | FAIL | **PASS** | FAIL (at 10%) | FAIL (at 10%, 60%, 70%) |
+| Both | no | no | no | no |
+
+**Verdict: the kill gate fails.** No router passes both criteria on any seed, and the result does
+not depend on the local-price assumption (identical at zero and five times the price). The
+learned routers are near-misses rather than clear failures — v1 is the cheapest router at 95%
+retention on every seed — but by margins the bootstrap intervals cannot separate from zero, and
+"dominates" and "beats" were defined before the curve was seen.
+
+**Why the curve is nearly a straight line.** On this subset the local model is right on 40.0% of
+prompts and the frontier on 97.8%. Holding 95% of frontier quality therefore leaves room to keep
+only about 10% of traffic local, whoever picks it, and with prompt-only AUROC around 0.6 the router
+cannot pick that 10% much better than chance. The saving available to *any* prompt-only router is
+bounded by how often the local model is right; with a 1.5B model and these hard test benchmarks,
+that bound is small.
