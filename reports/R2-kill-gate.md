@@ -283,6 +283,34 @@ gate criteria 1–2 are evaluated on a **stratified subset** instead:
 - Spend controls: a $3.50 ceiling in the spend guard for this run (worst case $3.73 with the pilot,
   under the $4.00 key limit, which remains a hard backstop), 3 requests in flight.
 
+### How gate criteria 1 and 2 are decided — pre-registered
+
+> Written on 2026-10-07 while the subset's frontier answers were being collected and **before any of
+> them (beyond the pilot) had been read**.
+
+Each router's scores are swept over τ = 0.00, 0.01, …, 1.00. At each τ a prompt goes to the local
+model if its score is ≥ τ and to the frontier otherwise; quality is the fraction answered correctly
+(the local label if routed local, the frontier label if escalated) and cost is the sum of the
+per-prompt costs from the cost model. Always-frontier and always-local are marked as points.
+
+- **Quality retention** = routed quality ÷ always-frontier quality on the same prompts.
+- **Criterion 1 — the curve dominates the heuristic over a usable range.** The usable range is
+  quality retention from 90% to 99% in steps of 1%. At each level, a router's cost is the lowest
+  cost over τ that reaches that retention. The router dominates if its cost is ≤ the heuristic's at
+  every level and strictly lower at one or more. The cost difference at 95% retention is also
+  reported with a 95% bootstrap interval (prompts resampled within each benchmark).
+- **Criterion 2 — beats random routing at matched escalation.** At escalation rates of 10%, 20%, …,
+  90%, a router's quality (interpolated along its sweep) must exceed the random router's at every
+  rate.
+- **Operating point.** τ is the lowest-cost threshold retaining ≥ 95% of always-frontier quality.
+  It is chosen on the same subset it is reported on — there are no frontier answers for validation
+  within the budget — so the operating point is in-sample and is labelled as such.
+- **Cost model.** Frontier cost = prompt tokens × $4/M + output tokens × $20/M (the pinned
+  OpenRouter prices; the real billed figures are kept beside them). Local cost = output tokens ×
+  (GPU hourly rate ÷ measured local throughput), assuming a saturated GPU; the router's own CPU
+  cost is treated as zero. The GPU rate and throughput are pinned in `config.py` with their
+  sources.
+
 ## 4. What surprised me
 
 - **The frozen encoder lost to the two-feature heuristic** on held-out benchmarks, and the paired
