@@ -620,3 +620,25 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
 - **Verified:** 224 unit tests; attempt-1 numbers reproduce exactly after the refactor.
 - **Next:** with the owner's approval, the full frontier run, then the cost model, the threshold
   sweep and the cost-quality curve — which decide whether v1's tie on AUROC is a saving in money.
+
+### 2026-10-07 — Frontier subset, cost-quality curve, and the gate verdict
+- **Budget:** the owner capped the key at $4, so the full frontier run (~$14.75) was replaced by a
+  20% stratified subset of the test set (457 prompts), **pre-registered in R2 before running**,
+  together with exactly how criteria 1–2 are decided and the local price used.
+- **Frontier run:** Claude Opus 5.5 answered all 457 (BBH 316/324, HumanEval 33/33, MATH 98/100 —
+  97.8%). The first ordering would have spent the cap before reaching MATH; the run was stopped,
+  items were interleaved across benchmarks so any cut stays proportional, and it resumed from the
+  cache. Total key usage: **$2.93 of $4.00**; computed cost matched OpenRouter's charge exactly.
+- **New code:** `bench/cost.py` (tokens × pinned prices) and `bench/sweep.py` (`make sweep`):
+  threshold sweep, cost at 90–99% quality retention, quality at 10–90% escalation, bootstrap
+  intervals, sensitivity at zero and five times the local price, and the cost-quality chart.
+- **Result:** always-frontier costs $7.58 per 1,000 prompts at 97.8% quality; always-local $0.08 at
+  40.0%. At 95% of frontier quality the best routers keep only ~10% of traffic local and cost
+  ~90–92% of always-frontier. **No router passes both gate criteria on any seed** — the kill gate
+  fails. v1 is cheapest at 95% on every seed, but no difference from the heuristic is significant.
+- **Why:** the saving any prompt-only router can find is capped by how often the local model is
+  right; at 40% vs 97.8%, every curve hugs the straight line between the two endpoints.
+- **Verified:** 233 unit tests; sweep reproduces exactly; conclusions unchanged at ×0 and ×5 local
+  price.
+- **Next (owner's decision):** publish the negative result, or relabel with a stronger local model
+  — the frontier answers already collected are reused, so that costs nothing on the API.

@@ -95,10 +95,11 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 - [x] Frontier backend via OpenRouter (OpenAI-compatible, same client shape as vLLM) + spend guard that refuses before sending; `make frontier-pilot`, `make frontier MAX_USD=…`
 - [x] Frontier pilot: 30 prompts, $0.23 (computed cost matches OpenRouter's charge exactly), projected full test set ≈ $14.75
 - [x] Owner budget: **$4.00 total** on the key → full run not affordable; budget-limited 20% stratified subset pre-registered in R2
-- [ ] Frontier answers for the 20% subset (`make frontier FRACTION=0.2 MAX_USD=3.5`, est. $2.73 new spend)
-- [ ] Cost model (pinned prices/GPU rate in config) + unit test against hand-computed value
-- [ ] Threshold sweep 0→1 step 0.01; monotonicity test (at-threshold monotonicity ✓ in unit tests); reproducibility test
-- [ ] Gate criteria 1–2 (curve vs heuristic, vs random at matched escalation)
+- [x] Frontier answers for the 20% subset: 457 prompts (BBH 316/324, HumanEval 33/33, MATH 98/100 = 97.8%); interleaved order so a cap would cut every benchmark evenly; key usage $2.93 of $4.00
+- [x] Cost model (`bench/cost.py`; local price = OpenRouter qwen-2.5-7b, amendment pre-registered) + unit test against hand-computed value
+- [x] Threshold sweep 0→1 step 0.01 (`make sweep`); monotonicity and reproducibility tests; sensitivity at local price ×0 / ×5
+- [x] **Gate criteria 1–2: FAILED.** No router passes both on any seed (v1 s1 passes C1 only, v1 s0 C2 only). At 95% retention the best routers cost ~90–92% of always-frontier; every cost difference vs the heuristic includes 0. Curves sit near the straight line local↔frontier because the local model is right on only 40% of the subset
+- [ ] **Owner decision:** publish the negative result (recommended) or relabel with a stronger local model (frontier answers reused, no API spend). Serving (Phase 4) not started
 - [ ] README results section filled from the results file, even if bad
 
 ## Phase 3 — Router v1  → `reports/R3-router-v1.md`
