@@ -97,6 +97,20 @@ def test_rate_limit_is_retried(monkeypatch: pytest.MonkeyPatch) -> None:
     assert _run(lambda r: next(responses), _guard()).generation.text == "4"
 
 
+def test_interleave_keeps_a_truncated_run_proportional() -> None:
+    from switchboard.labeling.benchmarks import Item
+    from switchboard.labeling.frontier import interleave
+
+    def items(name: str, n: int) -> list[Item]:
+        return [Item(name, f"{name}-{i}", "t", "t", "r") for i in range(n)]
+
+    order = interleave({"bbh": items("bbh", 300), "math": items("math", 100)})
+    first = [it.benchmark for it in order[:100]]
+    # Any prefix keeps roughly the 3:1 ratio instead of being all one benchmark.
+    assert 70 <= first.count("bbh") <= 80
+    assert len(order) == 400
+
+
 def test_key_is_sent_as_bearer_and_never_echoed_in_errors() -> None:
     seen: dict[str, Any] = {}
 

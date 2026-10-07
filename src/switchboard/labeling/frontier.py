@@ -81,6 +81,18 @@ def held_out_items(
     return out
 
 
+def interleave(by_bench: dict[str, list[Item]]) -> list[Item]:
+    """Order items so every benchmark advances at the same relative pace.
+
+    If the spend guard stops a run early, the missing answers are then spread evenly across
+    benchmarks instead of all falling on whichever benchmark happened to be last, so a partial
+    sample stays proportional.
+    """
+    keyed = [(i / len(group), name, it) for name, group in by_bench.items()
+             for i, it in enumerate(group)]  # fmt: skip
+    return [it for _, _, it in sorted(keyed, key=lambda k: (k[0], k[1]))]
+
+
 async def answer(
     items: Sequence[Item], settings: Settings, guard: SpendGuard, cache: GenerationCache
 ) -> dict[str, Any]:
@@ -143,7 +155,7 @@ def run(
 ) -> dict[str, Any]:
     spec = frontier_spec(settings)
     by_bench = held_out_items(settings, pilot, fraction)
-    items = [it for group in by_bench.values() for it in group]
+    items = interleave(by_bench)
     guard = SpendGuard(max_usd, settings.frontier_price_in_per_mtok,
                        settings.frontier_price_out_per_mtok)  # fmt: skip
     cache = GenerationCache(settings.cache_path)
