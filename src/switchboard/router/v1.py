@@ -12,9 +12,9 @@ The best epoch by validation AUROC is kept. A temperature is then fitted on vali
 
 from __future__ import annotations
 
-import copy
 import math
 import random
+import time
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -125,12 +125,38 @@ class V1Router:
         if self._model is None:
             raise RuntimeError("V1Router used before fit")
         self._model.eval()
+        # Score in length order so each batch pads to a similar length, then restore the order.
+        order = np.argsort([len(t) for t in texts], kind="stable")
+        ordered = [texts[i] for i in order]
         out = []
         use_bf16 = next(self._model.parameters()).device.type == "cuda"
         with torch.inference_mode(), torch.autocast("cuda", torch.bfloat16, enabled=use_bf16):
-            for batch in self._batches(texts):
+            for batch in self._batches(ordered):
                 out.append(self._model(**batch).float().cpu().numpy())
-        return np.concatenate(out).astype(np.float64)
+        result = np.empty(len(texts), dtype=np.float64)
+        result[order] = np.concatenate(out) if out else np.empty(0)
+        return result
+
+    def _length_grouped_batches(
+        self, lengths: Sequence[int], rng: np.random.Generator, group: int = 50
+    ) -> list[NDArray[np.int64]]:
+        """Shuffled batches of similar-length examples.
+
+        Shuffle everything, cut into groups of ``group`` batches, sort each group by length, slice
+        it into batches, then shuffle the batch order. Each batch is still a random draw of
+        similar-length prompts, but padding (most of the compute for long prompts) drops sharply.
+        """
+        perm = rng.permutation(len(lengths))
+        size = self.batch_size * group
+        batches: list[NDArray[np.int64]] = []
+        for start in range(0, len(perm), size):
+            chunk = perm[start : start + size]
+            chunk = chunk[np.argsort([lengths[i] for i in chunk], kind="stable")]
+            batches += [
+                chunk[i : i + self.batch_size] for i in range(0, len(chunk), self.batch_size)
+            ]
+        order = rng.permutation(len(batches))
+        return [batches[i] for i in order]
 
     # --- training -------------------------------------------------------------------------------
 
@@ -167,14 +193,28 @@ class V1Router:
         device = next(model.parameters()).device
         use_bf16 = device.type == "cuda"
         rng = np.random.default_rng(self.seed)
+        lengths = [len(t) for t in texts]
+        started = time.perf_counter()
 
         best_auc, best_state, stale = -1.0, None, 0
         for epoch in range(1, self.max_epochs + 1):
             model.train()
-            order = rng.permutation(len(texts))
             running = 0.0
-            for start in range(0, len(order), self.batch_size):
-                idx = order[start : start + self.batch_size]
+            batches = self._length_grouped_batches(lengths, rng)
+            for step, idx in enumerate(batches, start=1):
+                if step % 100 == 0:
+                    done = (epoch - 1) * steps_per_epoch + step
+                    rate = done / (time.perf_counter() - started)
+                    eta_min = (steps_per_epoch - step) / rate / 60
+                    log.info(
+                        "v1_progress",
+                        seed=self.seed,
+                        epoch=epoch,
+                        step=step,
+                        of=steps_per_epoch,
+                        steps_per_s=round(rate, 2),
+                        eta_epoch_min=round(eta_min, 1),
+                    )
                 batch = self._tokenizer(
                     [texts[i] for i in idx],
                     padding=True,
@@ -200,7 +240,9 @@ class V1Router:
             log.info("v1_epoch", seed=self.seed, epoch=epoch, val_auroc=round(val_auc, 4),
                      train_loss=round(running / len(texts), 4))  # fmt: skip
             if val_auc > best_auc:
-                best_auc, best_state, stale = val_auc, copy.deepcopy(model.state_dict()), 0
+                # Keep the best weights on the CPU so they do not occupy GPU memory.
+                best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+                best_auc, stale = val_auc, 0
                 self.best_epoch = epoch
             else:
                 stale += 1

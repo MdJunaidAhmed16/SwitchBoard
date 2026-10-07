@@ -47,7 +47,7 @@ from switchboard.router.metrics import (
     paired_auroc_difference_ci,
 )
 from switchboard.router.v0 import V0Router
-from switchboard.router.v1 import V1Router, pretrained_backbone
+from switchboard.router.v1_cache import V1Scores, train_or_load
 
 log = get_logger(__name__)
 
@@ -145,12 +145,14 @@ def evaluate(settings: Settings, attempt: Attempt = ATTEMPTS[1]) -> dict[str, An
     data = _prepare(load_router_data(settings), attempt)
     encoder = FrozenEncoder.from_settings(settings)
     routers: list[Router] = [HeuristicRouter(), RandomRouter(seed), V0Router(encoder, seed=seed)]
-    if attempt.with_v1:
-        backbone = pretrained_backbone(settings.router_encoder_id, settings.router_encoder_revision)
-        routers += [
-            V1Router(backbone, seed=s, max_tokens=settings.router_max_tokens) for s in V1_SEEDS
-        ]
     every = data.all()
+    if attempt.with_v1:
+        # Each seed is trained once and checkpointed; a rerun reuses finished seeds.
+        texts = list(every["router_text"])
+        routers += [
+            train_or_load(settings, attempt.number, s, data.train, data.val, texts)
+            for s in V1_SEEDS
+        ]
     scores = every[["benchmark", "item_id", "role", "label"]].copy()
     test_y = data.test["label"].to_numpy(dtype=int)
     test_p: dict[str, np.ndarray] = {}
@@ -168,7 +170,7 @@ def evaluate(settings: Settings, attempt: Attempt = ATTEMPTS[1]) -> dict[str, An
         if isinstance(router, V0Router):
             entry["chosen_c"] = router.chosen_c
             entry["val_auroc_by_c"] = {str(c): a for c, a in router.val_auroc_by_c.items()}
-        if isinstance(router, V1Router):
+        if isinstance(router, V1Scores):
             raw_test = router.predict_proba_uncalibrated(list(data.test["router_text"]))
             entry["v1"] = {
                 "seed": router.seed,
@@ -186,7 +188,7 @@ def evaluate(settings: Settings, attempt: Attempt = ATTEMPTS[1]) -> dict[str, An
 
     comparisons = {}
     pairs = [("v0", "heuristic"), ("v0", "random")]
-    v1_names = [r.name for r in routers if isinstance(r, V1Router)]
+    v1_names = [r.name for r in routers if isinstance(r, V1Scores)]
     pairs += [(n, other) for n in v1_names for other in ("v0", "heuristic")]
     for a, b in pairs:
         diff, lo, hi = paired_auroc_difference_ci(test_y, test_p[a], test_p[b], seed=seed)

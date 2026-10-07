@@ -174,6 +174,34 @@ def test_v1_temperature_is_fitted_on_validation_only(tmp_path: Path) -> None:
     assert router.best_epoch is not None
 
 
+def test_length_grouped_batches_cover_every_example_once(tmp_path: Path) -> None:
+    router = V1Router(_tiny_backbone(tmp_path), batch_size=8, device="cpu")
+    lengths = list(np.random.default_rng(0).integers(1, 500, 203))
+    batches = router._length_grouped_batches(lengths, np.random.default_rng(0), group=5)
+    flat = np.concatenate(batches)
+    assert sorted(flat.tolist()) == list(range(203))
+    assert all(len(b) <= 8 for b in batches)
+
+
+def test_checkpointed_scores_match_the_router(tmp_path: Path) -> None:
+    from switchboard.router.v1_cache import V1Scores, _text_key
+
+    router = V1Router(_tiny_backbone(tmp_path), seed=0, max_epochs=2, batch_size=8, device="cpu")
+    router.fit(_toy(16), _toy(16))
+    texts = list(_toy(16)["router_text"])
+    unique = sorted(set(texts))
+    logits = dict(zip([_text_key(t) for t in unique], router.logits(unique).tolist(), strict=True))
+    scores = V1Scores(
+        seed=0,
+        temperature=router.temperature,
+        best_epoch=router.best_epoch,
+        history=router.history,
+        logits_by_key=logits,
+    )
+    assert np.allclose(scores.predict_proba(texts), router.predict_proba(texts))
+    assert scores.name == "v1_s0"
+
+
 def test_v1_is_deterministic_for_a_seed(tmp_path: Path) -> None:
     def run() -> np.ndarray:
         r = V1Router(_tiny_backbone(tmp_path), seed=3, max_epochs=2, batch_size=8, device="cpu")
