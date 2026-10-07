@@ -17,6 +17,8 @@ VLLM_PORT      ?= 8001
 VLLM_GPU_UTIL  ?= 0.85
 VLLM_MAX_LEN   ?= 4096
 VLLM_MAX_SEQS  ?= 32
+# float16 for AWQ (4-bit) checkpoints
+VLLM_DTYPE     ?= bfloat16
 LOCAL_MODEL    ?= $(shell $(RUN) python -c "from switchboard.config import get_settings as g; print(g().local_model_id)")
 LOCAL_REVISION ?= $(shell $(RUN) python -c "from switchboard.config import get_settings as g; print(g().local_model_revision)")
 
@@ -65,7 +67,7 @@ grader-selfcheck:  ## Oracle answers for every real item must grade True (code r
 vllm:  ## Serve the local model with vLLM on the GPU (foreground)
 	$(UV) tool run --python 3.11 --from 'vllm==$(VLLM_VERSION)' vllm serve $(LOCAL_MODEL) \
 	  --revision $(LOCAL_REVISION) \
-	  --dtype bfloat16 \
+	  --dtype $(VLLM_DTYPE) \
 	  --max-model-len $(VLLM_MAX_LEN) \
 	  --max-num-seqs $(VLLM_MAX_SEQS) \
 	  --gpu-memory-utilization $(VLLM_GPU_UTIL) \
