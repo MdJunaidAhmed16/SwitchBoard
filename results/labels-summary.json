@@ -5,8 +5,8 @@
       "n": 2284
     },
     "train": {
-      "base_rate": 0.6469238491323677,
-      "n": 6973
+      "base_rate": 0.592034158382814,
+      "n": 14989
     },
     "val": {
       "base_rate": 0.6877133105802048,
@@ -23,14 +23,28 @@
   "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
   "model_revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
   "overall": {
-    "base_rate": 0.6001534183526704,
-    "correct": 6259,
+    "base_rate": 0.5758742206560044,
+    "correct": 10622,
     "excluded": 1,
-    "generation_wall_clock_s": 1731.4,
-    "n": 10429,
-    "total_output_tokens": 2663977
+    "generation_wall_clock_s": 3013.8,
+    "n": 18445,
+    "total_output_tokens": 4472441
   },
   "per_benchmark": {
+    "aqua_rat": {
+      "accuracy": 0.534,
+      "correct": 801,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 431.3,
+      "hit_token_cap_rate": 0.025333333333333333,
+      "limited_run": false,
+      "mean_output_tokens": 405.852,
+      "n": 1500,
+      "role": "train",
+      "total_output_tokens": 608778
+    },
     "arc_challenge": {
       "accuracy": 0.6877133105802048,
       "correct": 806,
@@ -59,6 +73,20 @@
       "role": "test",
       "total_output_tokens": 377543
     },
+    "commonsense_qa": {
+      "accuracy": 0.6533333333333333,
+      "correct": 980,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 124.4,
+      "hit_token_cap_rate": 0.0,
+      "limited_run": false,
+      "mean_output_tokens": 109.32733333333333,
+      "n": 1500,
+      "role": "train",
+      "total_output_tokens": 163991
+    },
     "gsm8k": {
       "accuracy": 0.8093333333333333,
       "correct": 2428,
@@ -72,6 +100,20 @@
       "n": 3000,
       "role": "train",
       "total_output_tokens": 771115
+    },
+    "gsm_hard": {
+      "accuracy": 0.4074803149606299,
+      "correct": 414,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 207.3,
+      "hit_token_cap_rate": 0.011811023622047244,
+      "limited_run": false,
+      "mean_output_tokens": 318.9232283464567,
+      "n": 1016,
+      "role": "train",
+      "total_output_tokens": 324026
     },
     "humaneval": {
       "accuracy": 0.49390243902439024,
@@ -117,6 +159,20 @@
       "role": "train",
       "total_output_tokens": 224832
     },
+    "medmcqa": {
+      "accuracy": 0.47533333333333333,
+      "correct": 713,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 217.4,
+      "hit_token_cap_rate": 0.0,
+      "limited_run": false,
+      "mean_output_tokens": 199.31733333333332,
+      "n": 1500,
+      "role": "train",
+      "total_output_tokens": 298976
+    },
     "mmlu": {
       "accuracy": 0.5446666666666666,
       "correct": 1634,
@@ -130,15 +186,43 @@
       "n": 3000,
       "role": "train",
       "total_output_tokens": 749434
+    },
+    "qasc": {
+      "accuracy": 0.436,
+      "correct": 654,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 182.5,
+      "hit_token_cap_rate": 0.0013333333333333333,
+      "limited_run": false,
+      "mean_output_tokens": 160.69333333333333,
+      "n": 1500,
+      "role": "train",
+      "total_output_tokens": 241040
+    },
+    "svamp": {
+      "accuracy": 0.801,
+      "correct": 801,
+      "excluded": 0,
+      "excluded_items": {},
+      "flag": null,
+      "generation_wall_clock_s": 119.5,
+      "hit_token_cap_rate": 0.002,
+      "limited_run": false,
+      "mean_output_tokens": 171.653,
+      "n": 1000,
+      "role": "train",
+      "total_output_tokens": 171653
     }
   },
   "software": {
     "httpx": "0.28.1",
-    "huggingface_hub": "2.0.0",
+    "huggingface_hub": "1.33.0",
     "pandas": "3.0.6",
     "pyarrow": "25.0.1",
     "python": "3.11.16",
-    "switchboard_commit": "5a9f100ea40fe43577bdb4a9e07889d7a51b6bbc-dirty"
+    "switchboard_commit": "487a71d05b89ef44c58e86f9a927a4b2e9905631-dirty"
   },
   "vllm": {
     "gpu_memory_utilization": 0.85,

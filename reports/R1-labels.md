@@ -1,6 +1,7 @@
 # R1 — Labels
 
-> Status: **complete — manual review gate passed (round 2).** The tables between the GENERATED
+> Status: **complete — manual review gate passed (round 2); extended on 2026-10-06 with the six
+> attempt-2 training benchmarks (see the end of section 3).** The tables between the GENERATED
 > markers are written by `make labels-summary` from `data/labels/`; do not edit them by hand.
 > Every figure quoted in the prose below appears in `results/labels-summary.json` or in the run
 > history in `data/labels/Qwen__Qwen2.5-1.5B-Instruct.meta.json`.
@@ -17,8 +18,8 @@ a deterministic per-benchmark grader. These labels are what the router learns to
 - **Decoding:** greedy (temperature 0), `top_p` 1, seed 0, at most 1,024 new tokens, identical
   for every benchmark.
 - **Hardware:** laptop NVIDIA RTX 4060 Laptop GPU (8 GB), WSL2 Ubuntu.
-- **Split** (`data/splits.yaml`): train GSM8K, MMLU, MBPP · val ARC-Challenge · test MATH,
-  HumanEval, BBH.
+- **Split** (`data/splits.yaml`): train GSM8K, MMLU, MBPP (+ GSM-Hard, SVAMP, AQuA-RAT,
+  CommonsenseQA, MedMCQA, QASC from attempt 2) · val ARC-Challenge · test MATH, HumanEval, BBH.
 - **Code grading:** every HumanEval/MBPP program ran in the Docker sandbox (no network, capped
   resources, non-root, read-only, 10 s kill), image pinned by digest.
 - **Grader self-check** (`make grader-selfcheck`): an answer built from each item's own reference
@@ -30,31 +31,60 @@ a deterministic per-benchmark grader. These labels are what the router learns to
 <!-- BEGIN GENERATED: labels-summary -->
 Model: `Qwen/Qwen2.5-1.5B-Instruct` @ `989aa7980e` · decoding: `{"max_tokens": 1024, "seed": 0, "temperature": 0.0, "top_p": 1.0}`
 
-**Overall base rate: 60.0%** (6259 / 10429 correct). Every later accuracy is read against this.
+**Overall base rate: 57.6%** (10622 / 18445 correct). Every later accuracy is read against this.
 
 | Benchmark | Role | n | Correct | Accuracy | Excluded | Hit token cap | Mean out tokens | Flag |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| aqua_rat | train | 1500 | 801 | 53.4% | 0 | 2.5% | 406 |  |
 | arc_challenge | val | 1172 | 806 | 68.8% | 0 | 0.0% | 197 |  |
 | bbh | test | 1620 | 622 | 38.4% | 0 | 0.5% | 233 |  |
+| commonsense_qa | train | 1500 | 980 | 65.3% | 0 | 0.0% | 109 |  |
 | gsm8k | train | 3000 | 2428 | 80.9% | 0 | 0.1% | 257 |  |
+| gsm_hard | train | 1016 | 414 | 40.7% | 0 | 1.2% | 319 |  |
 | humaneval | test | 164 | 81 | 49.4% | 0 | 0.0% | 196 |  |
 | math | test | 500 | 239 | 47.8% | 0 | 9.2% | 557 |  |
 | mbpp | train | 973 | 449 | 46.1% | 1 | 0.0% | 231 |  |
+| medmcqa | train | 1500 | 713 | 47.5% | 0 | 0.0% | 199 |  |
 | mmlu | train | 3000 | 1634 | 54.5% | 0 | 0.2% | 250 |  |
+| qasc | train | 1500 | 654 | 43.6% | 0 | 0.1% | 161 |  |
+| svamp | train | 1000 | 801 | 80.1% | 0 | 0.2% | 172 |  |
 
 | Role | n | Base rate |
 | --- | ---: | ---: |
-| train | 6973 | 64.7% |
+| train | 14989 | 59.2% |
 | val | 1172 | 68.8% |
 | test | 2284 | 41.2% |
 
-Tokens generated: 2,663,977 · generation wall-clock: 0.48 h
+Tokens generated: 4,472,441 · generation wall-clock: 0.84 h
 
 **Excluded items (1)** — never generated or labelled:
 - mbpp / `mbpp-0493`: prompt_exceeds_context: 3741 prompt + 1024 output > 4096 max_model_len
 <!-- END GENERATED: labels-summary -->
 
-Truncation rate at the router encoder's 512-token limit: reported in R2 from `results/router-v0.json` (`truncation`) — 22 prompts, 0.21%.
+Truncation rate at the router encoder's 512-token limit: reported in R2 from the router results
+files (`truncation`) — 22 prompts, which is 0.21% of the original set and 0.12% of the extended set.
+
+### Extension for attempt 2 (2026-10-06)
+
+Six training benchmarks were added for router attempt 2 (pre-registered in R2): GSM-Hard, SVAMP,
+AQuA-RAT, CommonsenseQA, MedMCQA and QASC — **8,016 new labels**, none failed or excluded, using
+the existing numeric and multiple-choice graders after the round-1 fixes. The table above now
+covers all 13 benchmarks; the original seven-benchmark summary (overall base rate 60.0%) is
+preserved in commit `5763eb7`.
+
+- **Grader self-check:** every new item graded correct against its own reference, 0 failures.
+- **Unparsable-answer scan** instead of a new 30-item round: the share of replies from which no
+  answer could be extracted was 0% (GSM-Hard, SVAMP), 0.7% (CommonsenseQA), 1.7% (QASC), 2.0%
+  (MedMCQA) and 7.8% (AQuA-RAT). Reading samples showed these are overwhelmingly genuine
+  non-answers — "none of the options", several letters for a single-answer question, refusals
+  to choose — so marking them wrong is correct. Answers that name the correct option's *text*
+  without its letter are the one remaining miss pattern: at most 11 of 18,445 labels (0.06%), an
+  upper bound from a loose text match. The grader is left unchanged rather than risk false
+  positives on the other 99.9%.
+- **GSM-Hard does its job:** 40.7% correct against GSM8K's 80.9% on prompts that read alike —
+  exactly the contradiction attempt 2 needed to break the "GSM8K-looking ⇒ easy" shortcut.
+- The new labels were **not** given their own 30-item manual review; an owner spot-check is
+  listed as open in `TODO.md`.
 
 ### Manual review gate
 
@@ -97,8 +127,9 @@ Truncation rate at the router encoder's 512-token limit: reported in R2 from `re
 
 ## 5. What this changes
 
-- **The gate passed; Phase 2 can start.** The overall base rate, **60.0%**, is the trivial
-  baseline for the classifier: a router that always says "local" is 60.0% accurate and useless.
+- **The gate passed; Phase 2 can start.** The overall base rate — 60.0% for the original seven
+  benchmarks, 57.6% after the attempt-2 extension — is the trivial baseline for the classifier:
+  a router that always says "local" is that accurate and useless.
   Every later accuracy is read against it.
 - **No benchmark is near-constant** (none above 95% or below 5%), so all seven carry routing signal.
 - **Calibration must be checked on test, not only on validation.** Temperature scaling will be
