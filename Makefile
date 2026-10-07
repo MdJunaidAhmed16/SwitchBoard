@@ -21,7 +21,7 @@ LOCAL_MODEL    ?= $(shell $(RUN) python -c "from switchboard.config import get_s
 LOCAL_REVISION ?= $(shell $(RUN) python -c "from switchboard.config import get_settings as g; print(g().local_model_revision)")
 
 .PHONY: help install lint format typecheck test test-docker test-integration check \
-        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample train-v0 train-attempt2 frontier-pilot frontier
+        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample train-v0 train-attempt2 frontier-pilot frontier sweep
 
 help:  ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -96,6 +96,9 @@ frontier-pilot:  ## Pilot: Claude answers 10 test prompts per benchmark; project
 frontier:  ## Claude answers test prompts (cached). MAX_USD=<ceiling> required; FRACTION=0.2 optional
 	@test -n "$(MAX_USD)" || { echo "set MAX_USD, e.g. make frontier MAX_USD=25"; exit 1; }
 	$(RUN) python -m switchboard.labeling.frontier --max-usd $(MAX_USD) $(if $(FRACTION),--fraction $(FRACTION))
+
+sweep:  ## Threshold sweep → cost-quality curve, gate criteria 1-2, sensitivity → R2 + chart
+	$(RUN) python -m switchboard.bench.sweep
 
 review-sample:  ## Draw 30 random (prompt, generation, label) triples for the manual gate
 	$(RUN) python -m switchboard.labeling.review --n 30 --seed $(SEED)
