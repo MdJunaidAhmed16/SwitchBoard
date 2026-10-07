@@ -628,7 +628,7 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
 - **Frontier run:** Claude Opus 5.5 answered all 457 (BBH 316/324, HumanEval 33/33, MATH 98/100 —
   97.8%). The first ordering would have spent the cap before reaching MATH; the run was stopped,
   items were interleaved across benchmarks so any cut stays proportional, and it resumed from the
-  cache. Total key usage: **$2.93 of $4.00**; computed cost matched OpenRouter's charge exactly.
+  cache. Total key usage: **$3.47 of $4.00**, equal to tokens × list price for the 457 answers (the pilot's 30 were reused from cache).
 - **New code:** `bench/cost.py` (tokens × pinned prices) and `bench/sweep.py` (`make sweep`):
   threshold sweep, cost at 90–99% quality retention, quality at 10–90% escalation, bootstrap
   intervals, sensitivity at zero and five times the local price, and the cost-quality chart.
@@ -642,3 +642,18 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
   price.
 - **Next (owner's decision):** publish the negative result, or relabel with a stronger local model
   — the frontier answers already collected are reused, so that costs nothing on the API.
+
+### 2026-10-08 — The write-up: a README generated from the results
+- **Owner's decision:** publish the negative result; try a stronger local model only if the laptop
+  GPU can run it.
+- **New code:** `bench/readme.py` (`make readme`) writes the README's headline and results tables
+  from the committed results files and draws the reliability diagram. The headline gives v1 as a
+  range over its three seeds, never the best seed. CI now regenerates the README and fails if any
+  number differs from what the results files say.
+- **README rewritten** around the result: what was found, the two pre-registered ways the project
+  could fail (both happened), the dataset-split vs row-split table, how it works, exact
+  reproduction commands, limitations and related work.
+- **Correction:** the frontier spend is **$3.47 of $4.00** ($0.53 left), not the $2.93 first
+  reported — OpenRouter had not finished recording the run when it was read. $3.47 equals tokens ×
+  list price for the 457 answers.
+- **Verified:** 238 unit tests, ruff, strict mypy; `make readme` is idempotent.
