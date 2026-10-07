@@ -26,6 +26,10 @@ jobs:
         run: uv run mypy
       - name: Unit tests
         run: uv run pytest
+      - name: README numbers match the results files
+        run: |
+          uv run python -m switchboard.bench.readme
+          git diff --exit-code README.md
       - name: Sandbox + code-grader tests (Docker)
         run: |
           make sandbox-pull
