@@ -149,6 +149,12 @@ spread across its three seeds (13-testing-and-reports, Phase 3).
 seen. The test benchmarks are unchanged and nothing in this design was tuned against them, but a
 second attempt after a failure is a forking path, and the write-up will say so.
 
+### Attempt 2 — results
+
+<!-- BEGIN GENERATED: router-attempt2 -->
+`TBD` — run `make train-attempt2`.
+<!-- END GENERATED: router-attempt2 -->
+
 ## 4. What surprised me
 
 - **The frozen encoder lost to the two-feature heuristic** on held-out benchmarks, and the paired
