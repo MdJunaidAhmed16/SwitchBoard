@@ -310,6 +310,15 @@ per-prompt costs from the cost model. Always-frontier and always-local are marke
   (GPU hourly rate ÷ measured local throughput), assuming a saturated GPU; the router's own CPU
   cost is treated as zero. The GPU rate and throughput are pinned in `config.py` with their
   sources.
+- **Amendment, 2026-10-07, still before any subset answer was read.** No GPU hourly price could
+  be retrieved from a verifiable source in this session (the cloud pricing pages did not load), so
+  local cost is instead the **market price of serving a small open model of the same family**:
+  OpenRouter's listed $0.10 / $0.20 per million input / output tokens for
+  `qwen/qwen-2.5-7b-instruct`, the smallest Qwen2.5 model it serves. The local model is the 1.5B,
+  so this overstates local cost — the conservative direction. Local cost per prompt = prompt tokens
+  × $0.10/M + output tokens × $0.20/M, from the tokens recorded at labelling time. Because the
+  router comparison could depend on this assumption, the sweep is repeated with the local price set
+  to zero and to five times this value, and those results are reported beside the main one.
 
 ## 4. What surprised me
 
