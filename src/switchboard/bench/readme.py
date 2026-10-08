@@ -20,6 +20,10 @@ import numpy as np
 import pandas as pd
 
 from switchboard.config import REPO_ROOT, Settings, get_settings
+from switchboard.labeling.benchmarks import REGISTRY
+from switchboard.labeling.generate import labels_path, model_slug
+from switchboard.labeling.graders import CHOICE_BENCHMARKS, CODE_BENCHMARKS, NUMERIC_BENCHMARKS
+from switchboard.labeling.splits import load_splits
 from switchboard.labeling.summary import write_into_report
 from switchboard.log import configure_logging, get_logger
 from switchboard.router.attempts import ATTEMPTS
@@ -254,6 +258,104 @@ def plot_reliability(scores: pd.DataFrame, path: Path, title: str) -> None:
     plt.close(fig)
 
 
+def _grader(name: str) -> str:
+    if name in NUMERIC_BENCHMARKS:
+        return "exact number"
+    if name in CHOICE_BENCHMARKS:
+        return "multiple choice"
+    if name in CODE_BENCHMARKS:
+        return "unit tests (Docker)"
+    return {"math": "equivalent final answer", "bbh": "exact answer"}.get(name, "answer match")
+
+
+def model_accuracy(settings: Settings) -> tuple[dict[str, str], pd.DataFrame]:
+    """Per-benchmark accuracy of each local model and the frontier model, from the label files.
+
+    Returns display names and a frame indexed by benchmark with ``n``, one accuracy column per
+    model and ``n_frontier`` (the frontier answered only the test subset).
+    """
+    models = {
+        "local_1": ATTEMPTS[2].settings_for(settings),
+        "local_2": ATTEMPTS[3].settings_for(settings),
+    }
+    names = {k: _short(s.local_model_id) for k, s in models.items()}
+    frames = {k: pd.read_parquet(labels_path(s)) for k, s in models.items()}
+    frontier = pd.read_parquet(
+        settings.labels_dir / f"{model_slug(settings.frontier_model_id)}.parquet"
+    )
+    names["frontier"] = _short(settings.frontier_model_id)
+    out = pd.DataFrame({"n": frames["local_1"].groupby("benchmark").size()})
+    for key, df in frames.items():
+        out[key] = df.groupby("benchmark")["label"].mean()
+    out["frontier"] = frontier.groupby("benchmark")["label"].mean()
+    out["n_frontier"] = frontier.groupby("benchmark").size()
+    return names, out
+
+
+def benchmark_table(settings: Settings, names: dict[str, str], acc: pd.DataFrame) -> str:
+    roles = load_splits(settings.splits_path, known=set(REGISTRY))
+    order = {"train": 0, "val": 1, "test": 2}
+    rows = sorted(acc.index, key=lambda b: (order[roles[b]], b))
+    lines = [
+        f"| Benchmark | Domain | Role | Prompts | Graded by | `{names['local_1']}` | "
+        f"`{names['local_2']}` | `{names['frontier']}` (test subset) |",
+        "| --- | --- | --- | ---: | --- | ---: | ---: | ---: |",
+    ]
+    for b in rows:
+        r = acc.loc[b]
+        frontier = (
+            f"{_pct(r['frontier'])} (n={int(r['n_frontier'])})" if r["n_frontier"] > 0 else "—"
+        )
+        lines.append(
+            f"| [{b}](https://huggingface.co/datasets/{REGISTRY[b].repo_id}) | {REGISTRY[b].track} "
+            f"| {roles[b]} | {int(r['n']):,} | {_grader(b)} | {_pct(r['local_1'])} | "
+            f"{_pct(r['local_2'])} | {frontier} |"
+        )
+    total = int(acc["n"].sum())
+    lines += [
+        "",
+        f"{len(rows)} benchmarks, {total:,} prompts per local model. Accuracy is the share of "
+        "prompts the model answered correctly — for the router, the base rate it has to beat.",
+    ]
+    return "\n".join(lines)
+
+
+def plot_benchmarks(
+    settings: Settings, names: dict[str, str], acc: pd.DataFrame, path: Path
+) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    roles = load_splits(settings.splits_path, known=set(REGISTRY))
+    order = {"train": 0, "val": 1, "test": 2}
+    rows = sorted(acc.index, key=lambda b: (order[roles[b]], b))
+    y = np.arange(len(rows))
+    height = 0.27
+    series = [("local_1", "#2a78d6"), ("local_2", "#eb6834"), ("frontier", "#1baf7a")]
+    fig, ax = plt.subplots(figsize=(8, 7))
+    for i, (key, color) in enumerate(series):
+        values = acc.loc[rows, key].to_numpy(dtype=float)
+        ax.barh(y + (i - 1) * height, 100 * np.nan_to_num(values), height * 0.9, color=color,
+                label=names[key] + (" (test subset)" if key == "frontier" else ""))  # fmt: skip
+    ax.set_yticks(y, [f"{b} ({roles[b]})" for b in rows])
+    ax.invert_yaxis()
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("Answered correctly (%)")
+    ax.set_title(
+        "Accuracy per benchmark: two local models and the frontier model", fontsize=11, pad=30
+    )
+    ax.grid(axis="x", alpha=0.25)
+    ax.legend(fontsize=8, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3, frameon=False)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+
+
 def load_attempt(settings: Settings, number: int) -> AttemptResult:
     res = settings.results_dir
     return AttemptResult(
@@ -272,6 +374,11 @@ def main() -> int:
     readme = REPO_ROOT / "README.md"
     write_into_report(readme, headline(attempts), *_block("readme-headline"))
     write_into_report(readme, results(attempt1, attempts), *_block("readme-results"))
+    names, acc = model_accuracy(settings)
+    write_into_report(readme, benchmark_table(settings, names, acc), *_block("readme-benchmarks"))
+    plot_benchmarks(
+        settings, names, acc, settings.reports_dir / "figures" / "benchmark-accuracy.png"
+    )
     for a in attempts:
         figure = settings.reports_dir / "figures" / f"reliability-attempt{a.number}.png"
         scores = pd.read_parquet(settings.results_dir / f"router-attempt{a.number}-scores.parquet")

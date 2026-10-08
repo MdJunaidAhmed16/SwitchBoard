@@ -109,3 +109,23 @@ def test_generated_block_replaces_only_its_markers(tmp_path: Path) -> None:
     write_into_report(readme, "new", begin, end)
     write_into_report(readme, "new", begin, end)  # idempotent
     assert readme.read_text() == f"intro\n{begin}\nnew\n{end}\noutro\n"
+
+
+def test_benchmark_table_orders_roles_and_marks_untested_frontier_cells() -> None:
+    import pandas as pd
+
+    from switchboard.bench.readme import benchmark_table
+    from switchboard.config import Settings
+
+    acc = pd.DataFrame(
+        {"n": [3000, 500], "local_1": [0.8, 0.4], "local_2": [0.9, 0.7],
+         "frontier": [float("nan"), 0.98], "n_frontier": [0, 100]},
+        index=["gsm8k", "math"],
+    )  # fmt: skip
+    names = {"local_1": "Small", "local_2": "Big", "frontier": "Frontier"}
+    text = benchmark_table(Settings(), names, acc)
+    rows = [line for line in text.splitlines() if line.startswith("| [")]
+    assert "gsm8k" in rows[0]  # train before test
+    assert "| train | 3,000 | exact number | 80.0% | 90.0% | — |" in rows[0]
+    assert "98.0% (n=100)" in rows[1]
+    assert "3,500 prompts per local model" in text
