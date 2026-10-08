@@ -33,6 +33,34 @@ With either local model, every router — learned, heuristic or random — sits 
 straight line between always-local and always-frontier. That line is what you get by routing a share of traffic at
 random, so a curve on it means the router found almost nothing worth keeping local.
 
+## Benchmarks and models
+
+Every prompt was answered by both local models; Claude Opus 5.5 answered a stratified 20% of the
+test benchmarks. Train benchmarks teach the routers, ARC-Challenge picks their settings, and the
+test benchmarks are never seen until the final score.
+
+<!-- BEGIN GENERATED: readme-benchmarks -->
+| Benchmark | Domain | Role | Prompts | Graded by | `Qwen2.5-1.5B-Instruct` | `Qwen2.5-7B-Instruct-AWQ` | `claude-opus-5.5` (test subset) |
+| --- | --- | --- | ---: | --- | ---: | ---: | ---: |
+| [aqua_rat](https://huggingface.co/datasets/deepmind/aqua_rat) | algebra word problems (multiple choice) | train | 1,500 | multiple choice | 53.4% | 80.5% | — |
+| [commonsense_qa](https://huggingface.co/datasets/tau/commonsense_qa) | commonsense reasoning (multiple choice) | train | 1,500 | multiple choice | 65.3% | 78.9% | — |
+| [gsm8k](https://huggingface.co/datasets/openai/gsm8k) | grade-school maths | train | 3,000 | exact number | 80.9% | 94.5% | — |
+| [gsm_hard](https://huggingface.co/datasets/reasoning-machines/gsm-hard) | hard arithmetic word problems | train | 1,016 | exact number | 40.7% | 62.9% | — |
+| [mbpp](https://huggingface.co/datasets/google-research-datasets/mbpp) | code generation | train | 973 | unit tests (Docker) | 46.1% | 67.3% | — |
+| [medmcqa](https://huggingface.co/datasets/openlifescienceai/medmcqa) | medical knowledge (multiple choice) | train | 1,500 | multiple choice | 47.5% | 66.2% | — |
+| [mmlu](https://huggingface.co/datasets/cais/mmlu) | broad knowledge | train | 3,000 | multiple choice | 54.5% | 72.8% | — |
+| [qasc](https://huggingface.co/datasets/allenai/qasc) | science reasoning, 8 options (multiple choice) | train | 1,500 | multiple choice | 43.6% | 60.3% | — |
+| [svamp](https://huggingface.co/datasets/ChilleD/SVAMP) | simple arithmetic word problems | train | 1,000 | exact number | 80.1% | 92.7% | — |
+| [arc_challenge](https://huggingface.co/datasets/allenai/ai2_arc) | science reasoning (validation) | val | 1,172 | multiple choice | 68.8% | 89.8% | — |
+| [bbh](https://huggingface.co/datasets/lukaemon/bbh) | multi-step reasoning | test | 1,620 | exact answer | 38.4% | 64.2% | 97.5% (n=324) |
+| [humaneval](https://huggingface.co/datasets/openai/openai_humaneval) | code generation | test | 164 | unit tests (Docker) | 49.4% | 81.1% | 100.0% (n=33) |
+| [math](https://huggingface.co/datasets/HuggingFaceH4/MATH-500) | competition maths | test | 500 | equivalent final answer | 47.8% | 70.0% | 98.0% (n=100) |
+
+13 benchmarks, 18,445 prompts per local model. Accuracy is the share of prompts the model answered correctly — for the router, the base rate it has to beat.
+<!-- END GENERATED: readme-benchmarks -->
+
+![Accuracy per benchmark](reports/figures/benchmark-accuracy.png)
+
 ## What was found
 
 1. **A stronger local model raised the ceiling, not the result.** Replacing the 1.5B with a 7B
