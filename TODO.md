@@ -110,7 +110,11 @@ _Done inside attempt 2 (Phase 2) and written up in R2 rather than a separate R3.
 - [x] τ chosen by a quality floor fixed in advance (95% retention, pre-registered)
 - [x] **Gate:** v1 beats v0 beyond seed spread ✓; ECE < 0.05 ✗ (0.072–0.095 after scaling). Moot for shipping: the Phase 2 gate already stopped serving
 
-## Phase 4 — Serving  → `reports/R4-serving.md`
+> **Phases 4–6 are out of scope (owner decision, 2026-10-08):** the project stops without GCP,
+> so no Terraform, cloud serving or hosted demo. The kill gate had already ruled out building
+> serving around the router. The items below are kept for the record, unticked.
+
+## Phase 4 — Serving  → `reports/R4-serving.md` (not planned)
 - [ ] ONNX export + Triton model repo + parity test (≤ 1e-4) in CI
 - [ ] Gateway: `/route`, `routing.py` as the only τ comparison, decision records
 - [ ] Failure handling: router/vLLM down → escalate; frontier errors → retry then surface
@@ -118,13 +122,13 @@ _Done inside attempt 2 (Phase 2) and written up in R2 rather than a separate R3.
 - [ ] Load generator: concurrency 1/8/32, 10% warmup discarded
 - [ ] **Gate:** router p99 ≤ 15 ms, gateway ≤ 5 ms, batching on/off chart, all requests logged
 
-## Phase 5 — Infrastructure  → `reports/R5-reproducibility.md`
+## Phase 5 — Infrastructure  → `reports/R5-reproducibility.md` (not planned)
 - [ ] Terraform: serving-cpu, serving-gpu, storage, budget modules; GCS state backend
 - [ ] `make gpu-up` / `gpu-down`; `make bench` with teardown trap
 - [ ] Idle watchdog (30 min); budget alerts 50/90/100%
 - [ ] **Gate:** clean-clone reproduction; crashed run leaves no GPU alive
 
-## Phase 6 — Demo and write-up  → `reports/R6-final.md`
+## Phase 6 — Demo and write-up  → `reports/R6-final.md` (write-up in README + R2; no demo)
 - [ ] Live scoring page with threshold slider; cached replay clearly labelled
 - [ ] Static dashboard reading `results/latest.json`
 - [ ] Rate limit, prompt cap, no anonymous escalation, daily ceiling
@@ -158,6 +162,7 @@ Decisions made while building, recorded here so they do not live only in chat.
 | 2026-10-03 | huggingface-hub 2.0.0 → 1.33.0 | tokenizers 0.23 (needed by transformers 5.18) requires hub < 2.0; the download calls used are unchanged |
 | 2026-10-07 | Cost curve and gate criteria 1–2 on a 20% stratified, hash-sampled subset of the test set (457 prompts), same frontier model | Owner's $4 cap; the full test set was projected at ~$14.75. Keeping Opus 5.5 preserves the meaning of always-frontier quality; intervals widen and are reported |
 | 2026-10-02 | Keep HumanEval at all 164 items as a test track | Owner decision. It is below the "several hundred rows" rule, so its per-benchmark figures are reported with confidence intervals, and the code track's test weight also comes from BBH/MATH alongside it. Revisit only if its interval is too wide to say anything |
+| 2026-10-08 | Stop without GCP: no Terraform, cloud serving or hosted demo (Phases 4–6) | Owner's decision. The kill gate already ruled out serving infrastructure; the deliverable is the evaluated result, reproducible locally from the committed labels and results |
 
 ## Open questions for the owner
 - None open.
