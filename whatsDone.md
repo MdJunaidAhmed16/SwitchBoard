@@ -671,3 +671,22 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
   per second, then paused overnight. Every generation is cached, so resuming continues where it
   stopped. Same single exclusion as before (`mbpp-0493`, prompt too long).
 - **Next:** finish the relabel (~30 min), `make train-attempt3`, `make sweep ATTEMPT=3`, verdict.
+
+### 2026-10-08 — Attempt 3 finished: the stronger model did not rescue routing
+- **Relabel completed** after the overnight pause (resumed from the cache): 18,445 labels from
+  Qwen2.5-7B-Instruct-AWQ, no failures, the same single over-long prompt excluded.
+- **Training and sweep:** `make train-attempt3` (three v1 seeds, ~15 minutes each) and
+  `make sweep ATTEMPT=3`, using the Claude answers already collected — no API spend.
+- **Result:** the 7B is right on 66.7% of test prompts (1.5B: 41.2%), but every router's AUROC fell
+  (heuristic 0.547, v1 mean 0.540, v0 0.505); criterion 3 fails for all. At 95% of frontier quality
+  the fine-tuned router costs 85.7–88.5% of always-frontier, random routing 87.6%, the heuristic
+  90.7%, while a perfect router would cost 44.2%. Only one v1 seed passes criteria 1–2. **The kill
+  gate fails for the third time.**
+- **Also found:** temperatures fitted on ARC (90% right for the 7B) made two seeds' test calibration
+  worse, because the test benchmarks are much harder for it (67%); and v0's provenance gap returned.
+- **Write-up:** R2 has the attempt-3 verdict and an updated status; the README now compares the two
+  local models side by side, generated from the results; the generator's gate rule was tightened to
+  the pre-registered one (every v1 seed must pass).
+- **Scope:** the owner stopped the project without GCP — no Terraform, cloud serving or demo
+  (Phases 4–6 recorded as not planned).
+- **Verified:** unit tests, ruff and strict mypy pass; attempt 2's sweep reproduces byte for byte.

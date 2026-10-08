@@ -102,6 +102,10 @@ Each phase ends with a report in `reports/` and a gate that can fail.
 - [x] **Owner decision (2026-10-08):** publish the negative result; try a stronger local model only if the laptop GPU can run it. Serving (Phase 4) not started
 - [x] README rewritten around the result; every number generated from `results/` by `make readme` (`bench/readme.py`), reliability diagram added, CI fails if the README drifts from the results
 
+- [x] **Attempt 3** (owner's option 2, pre-registered in R2): attempt 2 with Qwen2.5-7B-Instruct-AWQ as the local model — feasibility probe on the 457 subset (63.9% vs 40.0%; oracle cost 44.2% vs 65.9%), full relabel (18,445 labels), `make train-attempt3`, `make sweep ATTEMPT=3`
+- [x] **Attempt 3 verdict: FAILED.** C3 fails for every router (AUROC fell: heuristic 0.547, v1 0.540, v0 0.505); only v1 seed 0 passes C1–C2. Best v1 costs 85.7–88.5% of always-frontier at 95% retention vs random 87.6%; the oracle's 44.2% headroom goes unused
+- [x] README compares attempts 2 and 3 side by side (generated); the gate rule in the generator matches the pre-registration (v0, or v1 on every seed, passing C1–C3)
+
 ## Phase 3 — Router v1  → `reports/R3-router-v1.md`
 _Done inside attempt 2 (Phase 2) and written up in R2 rather than a separate R3._
 - [x] Fine-tuned encoder (BCE, AdamW, warmup, bf16, early stop on val AUROC), 3 seeds
