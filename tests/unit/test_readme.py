@@ -6,7 +6,16 @@ from typing import Any
 import numpy as np
 import pytest
 
-from switchboard.bench.readme import EN_DASH, LEARNED, headline, passes, reliability_curve
+from switchboard.bench.readme import (
+    EN_DASH,
+    LEARNED,
+    V1_SEEDS,
+    AttemptResult,
+    gate_passed,
+    headline,
+    passes,
+    reliability_curve,
+)
 from switchboard.labeling.summary import write_into_report
 
 
@@ -27,34 +36,59 @@ def _router(
     }
 
 
-def _sweep(c1: tuple[bool, ...], c2: tuple[bool, ...], ci: tuple[float, float]) -> dict[str, Any]:
+def _attempt(
+    c1: tuple[bool, ...],
+    c2: tuple[bool, ...],
+    ci: tuple[float, float] = (-1.0, 1.0),
+    c3: tuple[bool, bool] = (True, True),
+) -> AttemptResult:
     routers = {
         "heuristic": _router(0.114, 0.918, False, False, (0, 0)),
         "random": _router(0.079, 0.930, False, False, (0, 0)),
     }
     for i, name in enumerate(LEARNED):
         routers[name] = _router(0.07 + 0.01 * i, 0.94 - 0.01 * i, c1[i], c2[i], ci)
-    return {"routers": routers}
+    return AttemptResult(
+        number=3,
+        local_model="Org/Local-7B",
+        router={"kill_gate": {"criterion_3_pass": c3[0], "criterion_3_v1_pass_all_seeds": c3[1]}},
+        sweep={"routers": routers, "always_local": {"quality": 0.64}},
+    )
+
+
+ALL = (True, True, True, True)
+NONE = (False, False, False, False)
 
 
 def test_passes_reads_both_criteria() -> None:
     assert passes(_router(0.1, 0.9, True, False, (0, 0))) == (True, False)
 
 
-def test_headline_reports_a_failed_gate_and_v1_as_a_range() -> None:
-    text = headline(_sweep((True, False, False, False), (False, True, False, False), (-1.0, 1.0)))
-    assert "kill gate failed" in text
-    assert "every 95% bootstrap interval includes zero" in text
+def test_gate_needs_v0_or_every_v1_seed_to_pass_all_three_criteria() -> None:
+    assert not gate_passed(_attempt(NONE, NONE))
+    # One v1 seed passing criteria 1 and 2 is not enough: every seed must.
+    assert not gate_passed(_attempt((False, True, False, False), (False, True, False, False)))
+    assert gate_passed(_attempt((False, True, True, True), (False, True, True, True)))
+    assert gate_passed(_attempt((True, False, False, False), (True, False, False, False)))
+    # Criterion 3 still has to hold.
+    assert not gate_passed(_attempt(ALL, ALL, c3=(False, False)))
+
+
+def test_headline_reports_v1_as_a_range_and_the_gate() -> None:
+    text = headline([_attempt(NONE, NONE)])
+    assert "Local-7B" in text
+    assert "64.0%" in text
     # v1 seeds keep 8%, 9%, 10% local: reported as a range, never a cherry-picked seed.
-    assert f"8.0%{EN_DASH}10.0%" in text
-    assert "11.4%" in text
-    assert "93.0%" in text
+    assert f"8.0%{EN_DASH}10.0% kept local" in text
+    assert "11.4% kept local" in text
+    assert "**failed**" in text
+    assert "| no seed |" in text
 
 
-def test_headline_reports_a_pass_when_one_router_passes_both() -> None:
-    text = headline(_sweep((False, True, False, False), (False, True, False, False), (-1.0, -0.1)))
-    assert "kill gate passed" in text
-    assert "includes zero" not in text
+def test_headline_counts_seeds_significantly_cheaper_than_the_heuristic() -> None:
+    text = headline([_attempt(ALL, ALL, ci=(-1.0, -0.1))])
+    assert f"{len(V1_SEEDS)} of 3 seeds" in text
+    assert "| passed |" in text
 
 
 def test_reliability_curve_matches_hand_computed_bins() -> None:

@@ -3,27 +3,30 @@ written here from the committed results files; none is typed by hand.
 
     python -m switchboard.bench.readme        (make readme)
 
-Reads ``results/router-v0.json`` (attempt 1), ``results/router-attempt2.json``,
-``results/router-attempt2-scores.parquet``, ``results/sweep-attempt2.json`` and
-``results/labels-summary.json``. Writes the ``readme-headline`` and ``readme-results`` blocks and
-``reports/figures/reliability-attempt2.png``.
+Reads, for attempt 1, ``results/router-v0.json`` and, for each attempt in ``SHOWN``,
+``results/router-attempt<N>.json``, ``results/router-attempt<N>-scores.parquet`` and
+``results/sweep-attempt<N>.json``. Writes the ``readme-headline`` and ``readme-results`` blocks and
+``reports/figures/reliability-attempt<N>.png``.
 """
 
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from switchboard.config import REPO_ROOT, get_settings
+from switchboard.config import REPO_ROOT, Settings, get_settings
 from switchboard.labeling.summary import write_into_report
 from switchboard.log import configure_logging, get_logger
+from switchboard.router.attempts import ATTEMPTS
 
 log = get_logger(__name__)
 
+SHOWN = (2, 3)  # attempts with frontier answers, a v1 router and a cost-quality sweep
 V1_SEEDS = ("v1_s0", "v1_s1", "v1_s2")
 LEARNED = ("v0", *V1_SEEDS)
 RELIABILITY_BINS = 10
@@ -33,9 +36,28 @@ MIN_BIN_COUNT = 20  # sparser bins are noise, not calibration; dropped from the 
 COLORS = {"heuristic": "#2a78d6", "v0": "#eb6834", "v1": "#1baf7a"}
 
 
+@dataclass(frozen=True)
+class AttemptResult:
+    number: int
+    local_model: str
+    router: dict[str, Any]  # results/router-attempt<N>.json
+    sweep: dict[str, Any]  # the "main" part of results/sweep-attempt<N>.json
+
+
 def passes(entry: dict[str, Any]) -> tuple[bool, bool]:
     """Gate criteria 1 (dominates the heuristic) and 2 (beats random) for one router."""
     return bool(entry["criterion_1"]["dominates"]), bool(entry["criterion_2"]["beats_random"])
+
+
+def gate_passed(a: AttemptResult) -> bool:
+    """The pre-registered kill gate: a learned router passes criteria 1-3 — v0, or v1 on every
+    seed."""
+    kg, routers = a.router["kill_gate"], a.sweep["routers"]
+    v0 = bool(kg["criterion_3_pass"]) and all(passes(routers["v0"]))
+    v1 = bool(kg.get("criterion_3_v1_pass_all_seeds", False)) and all(
+        all(passes(routers[s])) for s in V1_SEEDS
+    )
+    return v0 or v1
 
 
 def _block(name: str) -> tuple[str, str]:
@@ -60,71 +82,63 @@ def _per_1k(cost: float, n: int) -> str:
     return f"${1000 * cost / n:.2f}"
 
 
-def headline(sweep: dict[str, Any]) -> str:
-    """The README's headline: the 95%-retention operating point of every router, as ranges."""
-    routers = sweep["routers"]
-    ops = {name: routers[name]["operating_point"] for name in routers}
-    v1 = [ops[s] for s in V1_SEEDS]
-    diffs = [routers[s]["cost_vs_heuristic_at_95"]["ci95"] for s in LEARNED]
-    all_include_zero = all(lo <= 0 <= hi for lo, hi in diffs)
-    gate_failed = not any(all(passes(routers[s])) for s in LEARNED)
-    return "\n".join(
-        [
-            "> At 95% of always-frontier quality, the learned router (v1, three seeds) keeps "
-            f"**{_span([o['share_kept_local'] for o in v1])}** of traffic on the local model, at "
-            f"**{_span([o['cost_share_of_always_frontier'] for o in v1])}** of always-frontier "
-            "cost. The length-and-keyword heuristic keeps "
-            f"{_pct(ops['heuristic']['share_kept_local'])} at "
-            f"{_pct(ops['heuristic']['cost_share_of_always_frontier'])}; random routing "
-            f"{_pct(ops['random']['share_kept_local'])} at "
-            f"{_pct(ops['random']['cost_share_of_always_frontier'])}.",
-            ">",
-            "> "
-            + (
-                "No learned router's cost differs significantly from the heuristic's "
-                "(every 95% bootstrap interval includes zero). "
-                if all_include_zero
-                else ""
-            )
-            + (
-                "**The pre-registered kill gate failed**: no router beats both the heuristic "
-                "and random routing on any seed."
-                if gate_failed
-                else "The pre-registered kill gate passed."
-            ),
-        ]
-    )
+def _short(model_id: str) -> str:
+    return model_id.split("/")[-1]
 
 
-def results(
-    attempt1: dict[str, Any],
-    attempt2: dict[str, Any],
-    sweep: dict[str, Any],
-    labels: dict[str, Any],
-) -> str:
-    n = sweep["n_prompts"]
-    af, al = sweep["always_frontier"], sweep["always_local"]
-    roles = labels["by_role"]
-    r2, routers = attempt2["routers"], sweep["routers"]
-    row = attempt2["row_split_optimistic"]
-    seeds = attempt2["v1"]["seeds"]
+def _operating(a: AttemptResult, names: tuple[str, ...]) -> str:
+    ops = [a.sweep["routers"][n]["operating_point"] for n in names]
+    if not all(o["found"] for o in ops):
+        return "never reaches 95%"
+    kept = _span([o["share_kept_local"] for o in ops])
+    cost = _span([o["cost_share_of_always_frontier"] for o in ops])
+    return f"{kept} kept local, {cost} of the cost"
 
+
+def headline(attempts: list[AttemptResult]) -> str:
+    """Each attempt's 95%-retention operating points and gate verdict, side by side. v1 is a range
+    over its three seeds, never the best seed."""
+    cols = [f"Attempt {a.number}: `{_short(a.local_model)}` local" for a in attempts]
     lines = [
-        "**Base rates** — how often each model is already right.",
-        "",
-        "| | Local model (Qwen2.5-1.5B) | Frontier (Claude Opus 5.5) |",
-        "| --- | --- | --- |",
-        f"| Train benchmarks ({roles['train']['n']:,} prompts) | "
-        f"{_pct(roles['train']['base_rate'])} | — |",
-        f"| Test benchmarks ({roles['test']['n']:,} prompts) | "
-        f"{_pct(roles['test']['base_rate'])} | — |",
-        f"| Test subset with frontier answers ({n} prompts) | {_pct(al['quality'])} | "
-        f"{_pct(af['quality'])} |",
-        f"| Cost per 1,000 prompts on the subset | {_per_1k(al['cost'], n)} | "
-        f"{_per_1k(af['cost'], n)} |",
-        "",
-        f"**Routers** — AUROC on all {roles['test']['n']:,} test prompts (95% bootstrap interval); "
-        f"cost and gate criteria on the {n}-prompt subset at 95% quality retention.",
+        "| At 95% of always-frontier quality | " + " | ".join(cols) + " |",
+        "| --- |" + " --- |" * len(attempts),
+    ]
+
+    def row(label: str, cells: list[str]) -> None:
+        lines.append(f"| {label} | " + " | ".join(cells) + " |")
+
+    row(
+        "Local model right (test subset)",
+        [_pct(a.sweep["always_local"]["quality"]) for a in attempts],
+    )
+    row("Learned router, v1 (3 seeds)", [f"**{_operating(a, V1_SEEDS)}**" for a in attempts])
+    row("Length-and-keyword heuristic", [_operating(a, ("heuristic",)) for a in attempts])
+    row("Random routing", [_operating(a, ("random",)) for a in attempts])
+
+    def significant(a: AttemptResult) -> str:
+        cis = [a.sweep["routers"][s]["cost_vs_heuristic_at_95"]["ci95"] for s in V1_SEEDS]
+        cheaper = sum(hi < 0 for _, hi in cis)
+        return f"{cheaper} of 3 seeds" if cheaper else "no seed"
+
+    row("v1 significantly cheaper than the heuristic", [significant(a) for a in attempts])
+    row(
+        "Pre-registered kill gate",
+        ["passed" if gate_passed(a) else "**failed**" for a in attempts],
+    )
+    return "\n".join(lines)
+
+
+def router_table(a: AttemptResult) -> list[str]:
+    r, routers = a.router["routers"], a.sweep["routers"]
+    seeds = a.router["v1"]["seeds"]
+    n = a.sweep["n_prompts"]
+    af, al = a.sweep["always_frontier"], a.sweep["always_local"]
+    lines = [
+        f"**Attempt {a.number} — local model `{_short(a.local_model)}`.** Right on "
+        f"{_pct(r['heuristic']['test']['base_rate'])} of all {r['heuristic']['test']['n']:,} test "
+        f"prompts; on the {n}-prompt subset {_pct(al['quality'])} at "
+        f"{_per_1k(al['cost'], n)} per 1,000 prompts, against the frontier's {_pct(af['quality'])} "
+        f"at {_per_1k(af['cost'], n)}.",
         "",
         "| Router | Test AUROC | ECE | Kept local | Cost vs always-frontier | "
         "C1: beats heuristic | C2: beats random |",
@@ -132,7 +146,7 @@ def results(
     ]
     for name in ("heuristic", "random", *LEARNED):
         op = routers[name]["operating_point"]
-        ece = f"{r2[name]['test']['ece']:.3f}"
+        ece = f"{r[name]['test']['ece']:.3f}"
         if name in seeds:
             ece = f"{seeds[name]['test_ece_uncalibrated']:.3f} → {ece}"
         gate = (
@@ -140,29 +154,51 @@ def results(
             if name in LEARNED
             else ["—", "—"]
         )
+        kept = _pct(op["share_kept_local"]) if op["found"] else "—"
+        cost = _pct(op["cost_share_of_always_frontier"]) if op["found"] else "never 95%"
         lines.append(
-            f"| {name} | {_ci(r2[name]['test'])} | {ece} | {_pct(op['share_kept_local'])} | "
-            f"{_pct(op['cost_share_of_always_frontier'])} | " + " | ".join(gate) + " |"
+            f"| {name} | {_ci(r[name]['test'])} | {ece} | {kept} | {cost} | "
+            + " | ".join(gate)
+            + " |"
         )
-    v1 = attempt2["v1"]
-    a1 = attempt1["routers"]["v0"]["test"]
+    v1 = a.router["v1"]
     lines += [
         "",
         f"v1 mean test AUROC {v1['test_auroc_mean']:.3f} (seed spread "
         f"{v1['test_auroc_spread']:.3f}); ECE for v1 is before → after temperature scaling.",
+    ]
+    return lines
+
+
+def results(attempt1: dict[str, Any], attempts: list[AttemptResult]) -> str:
+    lines = [
+        f"AUROC on all test prompts (95% bootstrap interval); cost and gate criteria on the "
+        f"{attempts[0].sweep['n_prompts']}-prompt subset with frontier answers, at 95% quality "
+        "retention.",
         "",
-        "**Why the split matters** — the same frozen-encoder router (v0), scored two ways.",
+    ]
+    for a in attempts:
+        lines += [*router_table(a), ""]
+    lines += [
+        "**Why the split matters** — the frozen-encoder router (v0), scored two ways.",
         "",
         "| | Dataset-level split (test benchmarks never seen) | Row split — optimistic |",
         "| --- | --- | --- |",
-        f"| Attempt 1 (train: GSM8K, MMLU, MBPP) | {_ci(a1)} | "
+        f"| Attempt 1 (train: GSM8K, MMLU, MBPP) | {_ci(attempt1['routers']['v0']['test'])} | "
         f"{_ci(attempt1['row_split_optimistic']['v0'])} |",
-        f"| Attempt 2 (nine train benchmarks, balanced weights) | {_ci(r2['v0']['test'])} | "
-        f"{_ci(row['v0'])} |",
-        "",
-        "Charts: `reports/figures/cost-quality-attempt2.png`, "
-        "`reports/figures/reliability-attempt2.png`.",
     ]
+    for a in attempts:
+        lines.append(
+            f"| Attempt {a.number} (nine train benchmarks, balanced weights) | "
+            f"{_ci(a.router['routers']['v0']['test'])} | "
+            f"{_ci(a.router['row_split_optimistic']['v0'])} |"
+        )
+    charts = ", ".join(
+        f"`reports/figures/{kind}-attempt{a.number}.png`"
+        for a in attempts
+        for kind in ("cost-quality", "reliability")
+    )
+    lines += ["", f"Charts: {charts}."]
     return "\n".join(lines)
 
 
@@ -180,7 +216,7 @@ def reliability_curve(
     return mean_p, acc, count
 
 
-def plot_reliability(scores: pd.DataFrame, path: Path) -> None:
+def plot_reliability(scores: pd.DataFrame, path: Path, title: str) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -204,7 +240,7 @@ def plot_reliability(scores: pd.DataFrame, path: Path) -> None:
     ax.set_xlabel("Predicted probability the local model is right")
     ax.set_ylabel("Observed fraction right")
     ax.set_title(
-        f"Reliability on the test benchmarks ({len(test):,} prompts)\n"
+        f"{title}: reliability on the test benchmarks ({len(test):,} prompts)\n"
         f"10 equal-width bins; bins under {MIN_BIN_COUNT} prompts omitted",
         fontsize=10,
     )
@@ -218,25 +254,29 @@ def plot_reliability(scores: pd.DataFrame, path: Path) -> None:
     plt.close(fig)
 
 
+def load_attempt(settings: Settings, number: int) -> AttemptResult:
+    res = settings.results_dir
+    return AttemptResult(
+        number=number,
+        local_model=ATTEMPTS[number].settings_for(settings).local_model_id,
+        router=json.loads((res / f"router-attempt{number}.json").read_text()),
+        sweep=json.loads((res / f"sweep-attempt{number}.json").read_text())["main"],
+    )
+
+
 def main() -> int:
     configure_logging()
     settings = get_settings()
-    res = settings.results_dir
-
-    def load(name: str) -> dict[str, Any]:
-        data: dict[str, Any] = json.loads((res / name).read_text())
-        return data
-
-    sweep = load("sweep-attempt2.json")["main"]
+    attempts = [load_attempt(settings, n) for n in SHOWN]
+    attempt1 = json.loads((settings.results_dir / "router-v0.json").read_text())
     readme = REPO_ROOT / "README.md"
-    write_into_report(readme, headline(sweep), *_block("readme-headline"))
-    block = results(
-        load("router-v0.json"), load("router-attempt2.json"), sweep, load("labels-summary.json")
-    )
-    write_into_report(readme, block, *_block("readme-results"))
-    figure = settings.reports_dir / "figures" / "reliability-attempt2.png"
-    plot_reliability(pd.read_parquet(res / "router-attempt2-scores.parquet"), figure)
-    log.info("readme_done", readme=str(readme), figure=str(figure))
+    write_into_report(readme, headline(attempts), *_block("readme-headline"))
+    write_into_report(readme, results(attempt1, attempts), *_block("readme-results"))
+    for a in attempts:
+        figure = settings.reports_dir / "figures" / f"reliability-attempt{a.number}.png"
+        scores = pd.read_parquet(settings.results_dir / f"router-attempt{a.number}-scores.parquet")
+        plot_reliability(scores, figure, f"Attempt {a.number}, {_short(a.local_model)}")
+    log.info("readme_done", readme=str(readme), attempts=list(SHOWN))
     return 0
 
 
