@@ -1,15 +1,21 @@
 # Switchboard
 
-Switchboard tests whether a small classifier can route each prompt to the cheapest model that can
-still answer it, by measuring the saving as a cost-versus-quality curve on public benchmarks.
+An experiment in LLM routing: **can a small classifier read a prompt and decide whether a cheap
+local model can answer it, so only the hard prompts go to an expensive frontier model?**
 
-> **Status: complete, as a negative result.** Three pre-registered attempts, two local models
-> (Qwen2.5 1.5B and 7B) against Claude Opus 5.5: the kill gate failed every time. No learned router
-> reliably beat a two-feature heuristic or random routing, and the saving at 95% of frontier
-> quality stayed between roughly 9% and 14%. Serving infrastructure was deliberately not built.
+Switchboard answers that question on 13 public benchmarks, with two local models (Qwen2.5 1.5B and
+7B on a laptop GPU) and Claude Opus 5.5 as the frontier model, and measures the result as a
+cost-versus-quality curve.
+
+> **Status: complete.** Three pre-registered experiments. The answer turned out to be *not from the
+> prompt alone*: the routers saved roughly 9–14% of frontier cost at 95% of its quality — about what
+> a simple length-and-keyword rule or random routing achieves. Along the way the project caught a
+> router taking a shortcut that a standard evaluation would have hidden, and measured why a stronger
+> local model is *harder* to route. Because the success bar set in advance was not met, the effort
+> went into understanding the result rather than into serving infrastructure.
 > Every number in the generated blocks comes from the committed results files via `make readme`.
 
-## Headline
+## Key result
 
 <!-- BEGIN GENERATED: readme-headline -->
 | At 95% of always-frontier quality | Attempt 2: `Qwen2.5-1.5B-Instruct` local | Attempt 3: `Qwen2.5-7B-Instruct-AWQ` local |
@@ -19,11 +25,11 @@ still answer it, by measuring the saving as a cost-versus-quality curve on publi
 | Length-and-keyword heuristic | 11.4% kept local, 91.8% of the cost | 12.7% kept local, 90.7% of the cost |
 | Random routing | 7.9% kept local, 93.0% of the cost | 12.5% kept local, 87.6% of the cost |
 | v1 significantly cheaper than the heuristic | no seed | no seed |
-| Pre-registered kill gate | **failed** | **failed** |
+| Met the pre-registered success bar | not met | not met |
 <!-- END GENERATED: readme-headline -->
 
 ```bash
-make sweep && make readme   # regenerates the curve, the gate verdict and every number here
+make sweep && make readme   # regenerates the curves, the verdict and every number here
 ```
 
 ![Cost-quality curve, 1.5B local model](reports/figures/cost-quality-attempt2.png)
@@ -76,20 +82,22 @@ test benchmarks are never seen until the final score.
 
 ![Accuracy per benchmark](reports/figures/benchmark-accuracy.png)
 
-## What was found
+## What the experiment taught
 
-1. **A stronger local model raised the ceiling, not the result.** Replacing the 1.5B with a 7B
+1. **Caught: a router that learned *where* a prompt came from, not how hard it was.** Trained on
+   three benchmarks, the first router scored 0.71 AUROC on a random split of its data, which looks
+   promising — but 0.55 on benchmarks it had never seen. It had learned that GSM8K-style prompts are
+   usually answered correctly and MBPP-style ones usually are not: shortcut learning, invisible to a
+   random split. Holding out whole benchmarks exposed it; adding harder look-alike datasets
+   (GSM-Hard) and rebalancing the training data so every benchmark is 50/50 reduced it.
+2. **A stronger local model raised the ceiling, not the result.** Replacing the 1.5B with a 7B
    lifted local accuracy on the cost subset from 40% to 64% and cut the cost of a *perfect* router
    from about 66% to 44% of always-frontier (R2, attempt 3). The learned routers captured almost
    none of that: their saving rose only from about 9–10% to 12–14%, about what random routing got.
-2. **The stronger model's mistakes are harder to predict from the prompt.** Every router's AUROC
+3. **The stronger model's mistakes are harder to predict from the prompt.** Every router's AUROC
    fell with the 7B (heuristic 0.61 → 0.55, fine-tuned v1 about 0.60 → 0.54). The heuristic
-   lost the most: the 7B's failures are much less tied to visible signs of difficulty such as
+   lost the most: the 7B's mistakes are much less tied to visible signs of difficulty such as
    prompt length and keywords.
-3. **A naive learned router learns where a prompt came from, not how hard it is.** Trained on three
-   benchmarks, the frozen-encoder router scored 0.71 AUROC on a random row split and 0.55 on unseen
-   benchmarks — it had learned each benchmark's base rate. A wider, re-weighted training mix
-   (attempt 2) removed that shortcut.
 4. **Fine-tuning helped, but only up to the heuristic.** The fine-tuned encoder (v1) beat the
    frozen one beyond its seed spread, and tied a logistic regression on prompt length and a
    twelve-word keyword list. Temperature scaling improved calibration on every seed, but not to
@@ -98,17 +106,17 @@ test benchmarks are never seen until the final score.
 5. **AUROC gains of a few points did not turn into money.** At these base rates the cost curves of
    all routers lie within the bootstrap noise of one another.
 
-The full analysis, including all three pre-registrations, is in
+The full write-up of all three experiments, including what was decided before each one, is in
 [`reports/R2-kill-gate.md`](reports/R2-kill-gate.md); the label pipeline and its audits are in
 [`reports/R1-labels.md`](reports/R1-labels.md).
 
-## The claim, and how it was allowed to fail
+## The hypothesis, and how it was tested
 
 A small classifier can predict, from the prompt alone and before any generation, whether a cheap
 self-hosted model will answer correctly. Routing on that prediction should keep most of the quality
 of always-frontier at a fraction of the cost.
 
-Written before any training code:
+Two ways it could be disproved were written down before any training code:
 
 1. **If the heuristic baseline's curve matches or dominates the learned router's curve, the model is
    unnecessary.** — *This happened in both cost-evaluated attempts, for v0 and for two of the three
@@ -118,8 +126,9 @@ Written before any training code:
    One v1 seed per attempt passed one or both, never every seed, and none passed the AUROC floor
    with the 7B.
 
-The roadmap's rule was to stop rather than build serving around a result that does not exist.
-The exact pass/fail definitions were committed before the curves were computed.
+The plan was to build serving infrastructure only once a router cleared this bar, so the time went
+into finding out why it did not. The exact definitions were committed before the curves were
+computed, so the result could not be tuned after the fact.
 
 ## Results
 
@@ -132,10 +141,10 @@ AUROC on all test prompts (95% bootstrap interval); cost and gate criteria on th
 | --- | --- | --- | --- | --- | --- | --- |
 | heuristic | 0.607 [0.582, 0.629] | 0.074 | 11.4% | 91.8% | — | — |
 | random | 0.507 [0.485, 0.532] | 0.248 | 7.9% | 93.0% | — | — |
-| v0 | 0.564 [0.542, 0.586] | 0.075 | 7.0% | 93.9% | **fail** | **fail** |
-| v1_s0 | 0.596 [0.572, 0.620] | 0.149 → 0.095 | 9.0% | 91.3% | **fail** | pass |
-| v1_s1 | 0.604 [0.579, 0.628] | 0.131 → 0.072 | 10.7% | 90.4% | pass | **fail** |
-| v1_s2 | 0.587 [0.563, 0.611] | 0.192 → 0.080 | 10.5% | 90.5% | **fail** | **fail** |
+| v0 | 0.564 [0.542, 0.586] | 0.075 | 7.0% | 93.9% | no | no |
+| v1_s0 | 0.596 [0.572, 0.620] | 0.149 → 0.095 | 9.0% | 91.3% | no | yes |
+| v1_s1 | 0.604 [0.579, 0.628] | 0.131 → 0.072 | 10.7% | 90.4% | yes | no |
+| v1_s2 | 0.587 [0.563, 0.611] | 0.192 → 0.080 | 10.5% | 90.5% | no | no |
 
 v1 mean test AUROC 0.596 (seed spread 0.017); ECE for v1 is before → after temperature scaling.
 
@@ -145,10 +154,10 @@ v1 mean test AUROC 0.596 (seed spread 0.017); ECE for v1 is before → after tem
 | --- | --- | --- | --- | --- | --- | --- |
 | heuristic | 0.547 [0.522, 0.571] | 0.184 | 12.7% | 90.7% | — | — |
 | random | 0.479 [0.454, 0.501] | 0.290 | 12.5% | 87.6% | — | — |
-| v0 | 0.505 [0.480, 0.530] | 0.181 | 10.1% | 91.2% | **fail** | **fail** |
-| v1_s0 | 0.546 [0.521, 0.570] | 0.219 → 0.290 | 15.3% | 85.7% | pass | pass |
-| v1_s1 | 0.531 [0.505, 0.555] | 0.222 → 0.301 | 14.4% | 87.9% | **fail** | **fail** |
-| v1_s2 | 0.544 [0.521, 0.568] | 0.237 → 0.202 | 16.0% | 88.5% | **fail** | **fail** |
+| v0 | 0.505 [0.480, 0.530] | 0.181 | 10.1% | 91.2% | no | no |
+| v1_s0 | 0.546 [0.521, 0.570] | 0.219 → 0.290 | 15.3% | 85.7% | yes | yes |
+| v1_s1 | 0.531 [0.505, 0.555] | 0.222 → 0.301 | 14.4% | 87.9% | no | no |
+| v1_s2 | 0.544 [0.521, 0.568] | 0.237 → 0.202 | 16.0% | 88.5% | no | no |
 
 v1 mean test AUROC 0.540 (seed spread 0.015); ECE for v1 is before → after temperature scaling.
 

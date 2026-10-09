@@ -126,8 +126,8 @@ def headline(attempts: list[AttemptResult]) -> str:
 
     row("v1 significantly cheaper than the heuristic", [significant(a) for a in attempts])
     row(
-        "Pre-registered kill gate",
-        ["passed" if gate_passed(a) else "**failed**" for a in attempts],
+        "Met the pre-registered success bar",
+        ["yes" if gate_passed(a) else "not met" for a in attempts],
     )
     return "\n".join(lines)
 
@@ -154,7 +154,7 @@ def router_table(a: AttemptResult) -> list[str]:
         if name in seeds:
             ece = f"{seeds[name]['test_ece_uncalibrated']:.3f} → {ece}"
         gate = (
-            ["pass" if ok else "**fail**" for ok in passes(routers[name])]
+            ["yes" if ok else "no" for ok in passes(routers[name])]
             if name in LEARNED
             else ["—", "—"]
         )
