@@ -39,6 +39,21 @@ Every prompt was answered by both local models; Claude Opus 5.5 answered a strat
 test benchmarks. Train benchmarks teach the routers, ARC-Challenge picks their settings, and the
 test benchmarks are never seen until the final score.
 
+**Models and encoders** (every version pinned):
+
+<!-- BEGIN GENERATED: readme-setup -->
+| Component | Model | Revision | How it ran |
+| --- | --- | --- | --- |
+| Local model, attempts 1–2 | `Qwen/Qwen2.5-1.5B-Instruct` | `989aa7980e` | vLLM 0.30.0 on an RTX 4060 laptop GPU (8 GB), 32 in flight; greedy (temperature 0.0), up to 1,024 new tokens |
+| Local model, attempt 3 | `Qwen/Qwen2.5-7B-Instruct-AWQ` | `b25037543e` | vLLM 0.30.0 on an RTX 4060 laptop GPU (8 GB), 16 in flight; greedy (temperature 0.0), up to 1,024 new tokens |
+| Frontier model | `anthropic/claude-opus-5.5` | via OpenRouter | answers cached once; $4.00 / $20.00 per million input / output tokens |
+| Router encoder (v0, v1) | `BAAI/bge-base-en-v1.5` | `a5beb1e3e6` | v0: frozen + logistic regression; v1: fine-tuned end to end, 3 seeds, temperature-scaled; prompts cut at 512 tokens |
+| Heuristic baseline | logistic regression | — | log word count + count of 12 difficulty keywords |
+| Random baseline | hash of the prompt | — | uniform score, for matched-rate comparison |
+<!-- END GENERATED: readme-setup -->
+
+**Datasets and accuracy per model:**
+
 <!-- BEGIN GENERATED: readme-benchmarks -->
 | Benchmark | Domain | Role | Prompts | Graded by | `Qwen2.5-1.5B-Instruct` | `Qwen2.5-7B-Instruct-AWQ` | `claude-opus-5.5` (test subset) |
 | --- | --- | --- | ---: | --- | ---: | ---: | ---: |
@@ -147,6 +162,31 @@ v1 mean test AUROC 0.540 (seed spread 0.015); ECE for v1 is before → after tem
 
 Charts: `reports/figures/cost-quality-attempt2.png`, `reports/figures/reliability-attempt2.png`, `reports/figures/cost-quality-attempt3.png`, `reports/figures/reliability-attempt3.png`.
 <!-- END GENERATED: readme-results -->
+
+**Router precision and recall:**
+
+<!-- BEGIN GENERATED: readme-classification -->
+Each router as a yes/no classifier of *the local model will answer this test prompt correctly*, at a score threshold of 0.5 (calibrated scores), on all test prompts. Precision is how often a prompt the router keeps local is answered correctly.
+
+| Attempt (local model) | Router | Accuracy | Precision | Recall | F1 | Predicted right |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 2 (`Qwen2.5-1.5B-Instruct`) | always says *right* | 41.2% | 41.2% | 100.0% | 0.584 | 100.0% |
+| 2 (`Qwen2.5-1.5B-Instruct`) | heuristic | 58.4% | 49.6% | 53.1% | 0.513 | 44.1% |
+| 2 (`Qwen2.5-1.5B-Instruct`) | random | 50.2% | 41.6% | 51.5% | 0.460 | 51.0% |
+| 2 (`Qwen2.5-1.5B-Instruct`) | v0 | 57.2% | 47.8% | 41.3% | 0.443 | 35.6% |
+| 2 (`Qwen2.5-1.5B-Instruct`) | v1_s0 | 58.9% | 50.2% | 54.5% | 0.522 | 44.7% |
+| 2 (`Qwen2.5-1.5B-Instruct`) | v1_s1 | 60.9% | 52.7% | 48.9% | 0.508 | 38.3% |
+| 2 (`Qwen2.5-1.5B-Instruct`) | v1_s2 | 58.0% | 49.1% | 49.4% | 0.492 | 41.5% |
+| 3 (`Qwen2.5-7B-Instruct-AWQ`) | always says *right* | 66.7% | 66.7% | 100.0% | 0.800 | 100.0% |
+| 3 (`Qwen2.5-7B-Instruct-AWQ`) | heuristic | 51.3% | 69.6% | 47.9% | 0.568 | 45.9% |
+| 3 (`Qwen2.5-7B-Instruct-AWQ`) | random | 48.5% | 64.9% | 49.6% | 0.562 | 51.0% |
+| 3 (`Qwen2.5-7B-Instruct-AWQ`) | v0 | 47.9% | 67.5% | 42.0% | 0.518 | 41.5% |
+| 3 (`Qwen2.5-7B-Instruct-AWQ`) | v1_s0 | 53.0% | 73.6% | 46.0% | 0.566 | 41.7% |
+| 3 (`Qwen2.5-7B-Instruct-AWQ`) | v1_s1 | 50.6% | 70.4% | 44.6% | 0.546 | 42.2% |
+| 3 (`Qwen2.5-7B-Instruct-AWQ`) | v1_s2 | 48.3% | 71.0% | 38.1% | 0.496 | 35.8% |
+
+A router is only useful if its precision clearly beats the *always says right* row (the base rate). Routing decisions in the cost analysis use the threshold sweep, not 0.5.
+<!-- END GENERATED: readme-classification -->
 
 ![Reliability diagram, 1.5B local model](reports/figures/reliability-attempt2.png)
 
