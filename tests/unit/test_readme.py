@@ -129,3 +129,15 @@ def test_benchmark_table_orders_roles_and_marks_untested_frontier_cells() -> Non
     assert "| train | 3,000 | exact number | 80.0% | 90.0% | — |" in rows[0]
     assert "98.0% (n=100)" in rows[1]
     assert "3,500 prompts per local model" in text
+
+
+def test_classification_metrics_match_a_hand_count() -> None:
+    from switchboard.bench.readme import classification
+
+    y = np.array([True, True, False, False])
+    p = np.array([0.9, 0.2, 0.7, 0.1])  # predicts right for items 0 and 2
+    m = classification(y, p)
+    assert m["accuracy"] == pytest.approx(0.5)
+    assert m["precision"] == pytest.approx(0.5)  # 1 of the 2 kept local is right
+    assert m["recall"] == pytest.approx(0.5)  # 1 of the 2 right ones kept local
+    assert m["predicted_right"] == pytest.approx(0.5)

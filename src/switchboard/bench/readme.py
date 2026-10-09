@@ -356,6 +356,86 @@ def plot_benchmarks(
     plt.close(fig)
 
 
+def setup_table(settings: Settings) -> str:
+    """Every model and encoder used, with its pinned revision and how it ran."""
+    lines = [
+        "| Component | Model | Revision | How it ran |",
+        "| --- | --- | --- | --- |",
+    ]
+    for number, label in ((2, f"Local model, attempts 1{EN_DASH}2"), (3, "Local model, attempt 3")):
+        s = ATTEMPTS[number].settings_for(settings)
+        meta = json.loads(labels_path(s).with_suffix(".meta.json").read_text())
+        v, d = meta["vllm"], meta["decode_params"]
+        lines.append(
+            f"| {label} | `{meta['model_id']}` | `{meta['model_revision'][:10]}` | vLLM "
+            f"{v['version']} on an RTX 4060 laptop GPU (8 GB), {v['max_num_seqs']} in flight; "
+            f"greedy (temperature {d['temperature']}), up to {d['max_tokens']:,} new tokens |"
+        )
+    lines += [
+        f"| Frontier model | `{settings.frontier_model_id}` | via OpenRouter | answers cached "
+        f"once; ${settings.frontier_price_in_per_mtok:.2f} / "
+        f"${settings.frontier_price_out_per_mtok:.2f} "
+        "per million input / output tokens |",
+        f"| Router encoder (v0, v1) | `{settings.router_encoder_id}` | "
+        f"`{settings.router_encoder_revision[:10]}` | v0: frozen + logistic regression; v1: "
+        f"fine-tuned end to end, 3 seeds, temperature-scaled; prompts cut at "
+        f"{settings.router_max_tokens} tokens |",
+        "| Heuristic baseline | logistic regression | — | log word count + count of 12 "
+        "difficulty keywords |",
+        "| Random baseline | hash of the prompt | — | uniform score, for matched-rate comparison |",
+    ]
+    return "\n".join(lines)
+
+
+def classification(y: np.ndarray, p: np.ndarray, threshold: float = 0.5) -> dict[str, float]:
+    """Accuracy, precision, recall and F1 of "the local model will be right" at ``threshold``."""
+    pred = p >= threshold
+    tp = float((pred & y).sum())
+    precision = tp / pred.sum() if pred.any() else float("nan")
+    recall = tp / y.sum() if y.any() else float("nan")
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
+    return {
+        "accuracy": float((pred == y).mean()),
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "predicted_right": float(pred.mean()),
+    }
+
+
+def classification_table(attempts: list[AttemptResult], settings: Settings) -> str:
+    lines = [
+        "Each router as a yes/no classifier of *the local model will answer this test prompt "
+        "correctly*, at a score threshold of 0.5 (calibrated scores), on all test prompts. "
+        "Precision is how often a prompt the router keeps local is answered correctly.",
+        "",
+        "| Attempt (local model) | Router | Accuracy | Precision | Recall | F1 | Predicted right |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for a in attempts:
+        scores = pd.read_parquet(settings.results_dir / f"router-attempt{a.number}-scores.parquet")
+        test = scores[scores["role"] == "test"]
+        y = test["label"].to_numpy(dtype=bool)
+        label = f"{a.number} (`{_short(a.local_model)}`)"
+        base = classification(y, np.ones(len(y)))
+        lines.append(
+            f"| {label} | always says *right* | {_pct(base['accuracy'])} | "
+            f"{_pct(base['precision'])} | 100.0% | {base['f1']:.3f} | 100.0% |"
+        )
+        for name in ("heuristic", "random", *LEARNED):
+            m = classification(y, test[f"score_{name}"].to_numpy(dtype=float))
+            lines.append(
+                f"| {label} | {name} | {_pct(m['accuracy'])} | {_pct(m['precision'])} | "
+                f"{_pct(m['recall'])} | {m['f1']:.3f} | {_pct(m['predicted_right'])} |"
+            )
+    lines += [
+        "",
+        "A router is only useful if its precision clearly beats the *always says right* row (the "
+        "base rate). Routing decisions in the cost analysis use the threshold sweep, not 0.5.",
+    ]
+    return "\n".join(lines)
+
+
 def load_attempt(settings: Settings, number: int) -> AttemptResult:
     res = settings.results_dir
     return AttemptResult(
@@ -374,6 +454,10 @@ def main() -> int:
     readme = REPO_ROOT / "README.md"
     write_into_report(readme, headline(attempts), *_block("readme-headline"))
     write_into_report(readme, results(attempt1, attempts), *_block("readme-results"))
+    write_into_report(readme, setup_table(settings), *_block("readme-setup"))
+    write_into_report(
+        readme, classification_table(attempts, settings), *_block("readme-classification")
+    )
     names, acc = model_accuracy(settings)
     write_into_report(readme, benchmark_table(settings, names, acc), *_block("readme-benchmarks"))
     plot_benchmarks(
