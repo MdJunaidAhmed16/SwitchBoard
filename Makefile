@@ -21,7 +21,7 @@ LOCAL_MODEL    ?= $(shell $(RUN) python -c "from switchboard.config import get_s
 LOCAL_REVISION ?= $(shell $(RUN) python -c "from switchboard.config import get_settings as g; print(g().local_model_revision)")
 
 .PHONY: help install lint format typecheck test test-docker test-integration check \
-        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample train-v0 train-attempt2 frontier-pilot frontier sweep
+        sandbox-pull grader-selfcheck vllm labels regrade labels-summary review-sample train-v0 train-attempt2 frontier-pilot frontier sweep readme
 
 help:  ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -99,6 +99,9 @@ frontier:  ## Claude answers test prompts (cached). MAX_USD=<ceiling> required; 
 
 sweep:  ## Threshold sweep → cost-quality curve, gate criteria 1-2, sensitivity → R2 + chart
 	$(RUN) python -m switchboard.bench.sweep
+
+readme:  ## Regenerate the README's numbers and the reliability diagram from results/
+	$(RUN) python -m switchboard.bench.readme
 
 review-sample:  ## Draw 30 random (prompt, generation, label) triples for the manual gate
 	$(RUN) python -m switchboard.labeling.review --n 30 --seed $(SEED)

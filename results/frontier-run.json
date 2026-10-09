@@ -1,0 +1,82 @@
+{
+  "benchmarks": {
+    "bbh": {
+      "items_in_run": 324,
+      "labelled": 324,
+      "correct": 316,
+      "accuracy": 0.9753086419753086,
+      "mean_output_tokens": 302.63271604938274,
+      "mean_prompt_tokens": 173.36111111111111
+    },
+    "humaneval": {
+      "items_in_run": 33,
+      "labelled": 33,
+      "correct": 33,
+      "accuracy": 1.0,
+      "mean_output_tokens": 311.42424242424244,
+      "mean_prompt_tokens": 228.21212121212122
+    },
+    "math": {
+      "items_in_run": 100,
+      "labelled": 100,
+      "correct": 98,
+      "accuracy": 0.98,
+      "mean_output_tokens": 498.43,
+      "mean_prompt_tokens": 119.42
+    }
+  },
+  "model": "anthropic/claude-opus-5.5",
+  "provider": "openrouter",
+  "decode_params": {
+    "max_tokens": 8192
+  },
+  "prices_per_mtok": {
+    "in": 4.0,
+    "out": 20.0
+  },
+  "mode": "fraction 0.2 of each benchmark",
+  "max_usd": 2.4,
+  "run": {
+    "cached": 207,
+    "answered": 250,
+    "failed": 0,
+    "stopped_by_spend_guard": false,
+    "reported_cost_usd": 2.041816000000001,
+    "cost_usd_by_benchmark": {
+      "humaneval": 0.15549600000000002,
+      "math": 0.9468080000000004,
+      "bbh": 0.9395120000000005
+    },
+    "answered_by_benchmark": {
+      "humaneval": 23,
+      "math": 90,
+      "bbh": 137
+    },
+    "spent_usd": 2.041816000000001
+  },
+  "wall_clock_s": 624.1,
+  "projection_full_test_set": {
+    "bbh": {
+      "per_item_usd": 0.006752,
+      "items": 1620,
+      "projected_usd": 10.93824
+    },
+    "humaneval": {
+      "per_item_usd": 0.007132,
+      "items": 164,
+      "projected_usd": 1.169648
+    },
+    "math": {
+      "per_item_usd": 0.010436,
+      "items": 500,
+      "projected_usd": 5.218
+    }
+  },
+  "projected_total_usd": 17.325888,
+  "finished_at": "2026-10-07T02:45:33.424051+00:00",
+  "items_by_benchmark": {
+    "bbh": 324,
+    "humaneval": 33,
+    "math": 100
+  }
+}
