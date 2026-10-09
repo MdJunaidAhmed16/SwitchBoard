@@ -1,13 +1,14 @@
 # R2 — Router v0 and the kill gate
 
-> Status: **kill gate FAILED — Phase 2 is complete as a negative result.** Two pre-registered
-> attempts: no learned router beats the length-and-keyword heuristic, and on the cost-quality
-> curve (457-prompt stratified test subset, $4 budget) every router — learned, heuristic or random —
-> sits close to the straight line between always-local and always-frontier. At 95% of
-> always-frontier quality the best routers cost about 90–92% of always-frontier; the learned
-> routers' small edge over the heuristic is not significant. No serving work is started. Tables
-> between GENERATED markers are written by `make train-v0`, `make train-attempt2` and
-> `make sweep`; do not edit them by hand.
+> Status: **kill gate FAILED in all three attempts — Phase 2 is complete as a negative result.**
+> Attempt 1 learned benchmark provenance; attempt 2 removed that shortcut and produced a fine-tuned
+> router that ties the length-and-keyword heuristic; attempt 3 swapped in a 7B local model, which
+> raised the ceiling on savings but made its mistakes *harder* to predict from the prompt. On the
+> cost-quality curve (457-prompt test subset, $4 budget) every router stays near the straight line
+> between always-local and always-frontier: about 9–14% saved at 95% of frontier quality, never
+> significantly more than the heuristic. No serving work is started. Tables between GENERATED
+> markers are written by `make train-v0`, `make train-attempt2`, `make train-attempt3` and
+> `make sweep ATTEMPT=2|3`; do not edit them by hand.
 
 ## 1. What was measured
 
@@ -380,7 +381,6 @@ Attempt 2:
      nothing extra on the API.
   3. Stop here.
 - **Options after attempt 1** (kept for the record; option 2 was chosen):
-- **Options after attempt 1** (kept for the record; option 2 was chosen):
   1. **Write up the negative result** — "prompt-only routing with a frozen encoder learns benchmark
      provenance, not difficulty" — with the cost curve for the heuristic and always-frontier.
   2. **Change the benchmark mix** — train on many more, more varied benchmarks so that benchmark
@@ -450,3 +450,224 @@ only about 10% of traffic local, whoever picks it, and with prompt-only AUROC ar
 cannot pick that 10% much better than chance. The saving available to *any* prompt-only router is
 bounded by how often the local model is right; with a 1.5B model and these hard test benchmarks,
 that bound is small.
+
+## Attempt 3 — a stronger local model, pre-registered
+
+> Written on 2026-10-08, after the attempt-2 verdict above and **before any attempt-3 router was
+> trained or scored**. The owner chose to publish the negative result and, if the laptop GPU could
+> run it, to try a stronger local model (§5, option 2). Attempts 1 and 2 stay in this report
+> unchanged; attempt 3 is reported beside them, never instead of them.
+
+**Why.** Attempt 2's curve is capped by the local model: right on 40% of the subset against the
+frontier's 97.8%, it leaves room to keep only about a tenth of traffic local at 95% quality,
+whatever the router does.
+
+**What was already seen — disclosed.** To check that the GPU could serve a 7B model at all, it
+answered the 457 subset prompts once (a feasibility probe). That probe produced three numbers and
+nothing else — no router was trained or scored:
+
+| On the 457-prompt subset | Qwen2.5-1.5B (attempts 1-2) | Qwen2.5-7B-Instruct-AWQ |
+| --- | --- | --- |
+| Local accuracy | 40.0% | 63.9% |
+| Oracle router (keeps local exactly the prompts escalation cannot improve): cost vs always-frontier | 65.9% | 44.2% |
+| Random routing at 95% retention (expected): cost vs always-frontier | 91.6% | 85.7% |
+
+So the 7B raises the ceiling on savings; whether a prompt-only router can reach any of it is what
+attempt 3 tests. Those probe generations are cached and reused by the full relabel, so the subset's
+labels in attempt 3 are exactly the probe's.
+
+**What changes — one thing.** The local model becomes `Qwen/Qwen2.5-7B-Instruct-AWQ` @
+`b25037543e` (Apache-2.0; the official 4-bit AWQ build, because the bf16 weights do not fit the
+8 GB GPU), served by the same vLLM 0.30.0 in float16 with 16 sequences in flight (the most that
+leaves enough KV cache on this GPU). Every benchmark is relabelled with it.
+
+**What is fixed (identical to attempt 2).** Benchmarks, splits and sampling; prompts, decoding
+(greedy, 1,024 new tokens, same `decode_params_hash`) and context length (4,096); graders and
+sandbox; router code, encoder, hyperparameters, seeds and benchmark-balanced weights (`ATTEMPTS[3]`
+differs from `ATTEMPTS[2]` only in its local model, enforced by a unit test); the frontier answers
+for the 457-prompt subset (reused, no new API spend); the cost model, including the local price —
+OpenRouter's listed price for `qwen/qwen-2.5-7b-instruct`, which was a conservative stand-in for
+the 1.5B and is now the like-for-like price for this model; and how every criterion is decided.
+
+**How attempt 3 is judged.** Exactly as attempt 2: criterion 3 (test-AUROC interval lower end
+above 0.55) for v0 and for each v1 seed; criteria 1 and 2 on the subset as defined above; v1 beats v0
+only by more than its seed spread; the operating point at 95% retention, labelled in-sample; and the
+sensitivity check at zero and five times the local price. The kill gate passes only if a learned
+router passes all three criteria on every seed reported for it.
+
+**Known weaknesses, stated up front.** This is a third attempt after two failures — a forking path,
+and the write-up will say so. The local model was changed after seeing that attempt 2's saving was
+capped by local accuracy; the probe showed the 7B's subset accuracy before this was written, but no
+router result. AWQ quantisation means this is not the bf16 7B; its answers are what is labelled,
+and that is the model that would be served.
+
+<!-- BEGIN GENERATED: router-attempt3 -->
+Local model `Qwen/Qwen2.5-7B-Instruct-AWQ` @ `b25037543e`
+
+Encoder `BAAI/bge-base-en-v1.5` @ `a5beb1e3e6` (frozen for v0) · seed 0 · split sizes train 14989, val 1172, test 2284
+
+**Dataset-level split** (the headline): routers trained on train benchmarks, C chosen on validation, scored on held-out test benchmarks. 95% bootstrap intervals.
+
+| Router | Val AUROC | Test AUROC | Test 95% CI | Test ECE | Test Brier |
+| --- | ---: | ---: | --- | ---: | ---: |
+| heuristic | 0.495 | **0.547** | [0.522, 0.571] | 0.184 | 0.256 |
+| random | 0.476 | **0.479** | [0.454, 0.501] | 0.290 | 0.338 |
+| v0 | 0.546 | **0.505** | [0.480, 0.530] | 0.181 | 0.257 |
+| v1_s0 | 0.589 | **0.546** | [0.521, 0.570] | 0.290 | 0.351 |
+| v1_s1 | 0.561 | **0.531** | [0.505, 0.555] | 0.301 | 0.357 |
+| v1_s2 | 0.562 | **0.544** | [0.521, 0.568] | 0.202 | 0.262 |
+
+Test base rate: 66.7% (the local model is right this often).
+
+**v0 against the baselines on test** (paired bootstrap):
+
+| Comparison | AUROC difference | 95% CI |
+| --- | ---: | --- |
+| v0 minus heuristic | -0.042 | [-0.068, -0.017] |
+| v0 minus random | +0.026 | [-0.006, 0.061] |
+| v1 s0 minus v0 | +0.041 | [0.021, 0.062] |
+| v1 s0 minus heuristic | -0.001 | [-0.020, 0.018] |
+| v1 s1 minus v0 | +0.026 | [0.007, 0.045] |
+| v1 s1 minus heuristic | -0.017 | [-0.041, 0.006] |
+| v1 s2 minus v0 | +0.040 | [0.021, 0.060] |
+| v1 s2 minus heuristic | -0.003 | [-0.020, 0.014] |
+
+**Per test benchmark** (where does prompt-only routing work?):
+
+| Benchmark | n | Base rate | Heuristic | Random | v0 | v0 95% CI |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| bbh | 1620 | 64.2% | 0.513 | 0.481 | 0.468 | [0.441, 0.496] |
+| humaneval | 164 | 81.1% | 0.659 | 0.387 | 0.504 | [0.400, 0.617] |
+| math | 500 | 70.0% | 0.690 | 0.490 | 0.602 | [0.548, 0.649] |
+
+**Row-level split — OPTIMISTIC, for comparison only** (random 80/20 over all rows; the router can learn which benchmark a prompt came from):
+
+| Router | Row-split AUROC | Dataset-split AUROC | Gap |
+| --- | ---: | ---: | ---: |
+| heuristic | 0.503 | 0.547 | -0.044 |
+| random | 0.493 | 0.479 | +0.014 |
+| v0 | 0.610 | 0.505 | +0.105 |
+
+**Diagnostics** — fit on the training benchmarks, and mean score per benchmark against the local model's actual base rate:
+
+| Router | Train AUROC (in-sample) | Test AUROC, pooled | Test AUROC, within-benchmark |
+| --- | ---: | ---: | ---: |
+| heuristic | 0.518 | 0.547 | 0.562 |
+| random | 0.501 | 0.479 | 0.476 |
+| v0 | 0.640 | 0.505 | 0.500 |
+
+| Benchmark | Role | Base rate | Heuristic mean score | v0 mean score |
+| --- | --- | ---: | ---: | ---: |
+| aqua_rat | train | 0.805 | 0.487 | 0.506 |
+| commonsense_qa | train | 0.789 | 0.529 | 0.506 |
+| gsm8k | train | 0.945 | 0.488 | 0.509 |
+| gsm_hard | train | 0.629 | 0.485 | 0.498 |
+| mbpp | train | 0.673 | 0.502 | 0.511 |
+| medmcqa | train | 0.662 | 0.538 | 0.515 |
+| mmlu | train | 0.728 | 0.456 | 0.486 |
+| qasc | train | 0.603 | 0.518 | 0.514 |
+| svamp | train | 0.927 | 0.523 | 0.530 |
+| arc_challenge | val | 0.898 | 0.480 | 0.518 |
+| bbh | test | 0.642 | 0.469 | 0.485 |
+| humaneval | test | 0.811 | 0.457 | 0.510 |
+| math | test | 0.700 | 0.535 | 0.488 |
+
+Prompts longer than the encoder's 512-token limit: 22 (0.12%).
+
+**Kill gate, criterion 3** (v0 test AUROC 95% CI low > 0.55): low = 0.480 → **FAIL**. Criteria 1 and 2: pending the frontier answers and the cost-quality sweep.
+
+**v1 — fine-tuned encoder, 3 seeds** (benchmark-balanced weighted BCE; best epoch by validation AUROC; temperature fitted on validation only):
+
+| Seed | Best epoch | Temperature | Val AUROC | Test AUROC | Test 95% CI | Test ECE before → after | Test Brier before → after |
+| --- | ---: | ---: | ---: | ---: | --- | --- | --- |
+| v1_s0 | 2 | 0.52 | 0.589 | **0.546** | [0.521, 0.570] | 0.219 → 0.290 | 0.296 → 0.351 |
+| v1_s1 | 2 | 0.52 | 0.561 | **0.531** | [0.505, 0.555] | 0.222 → 0.301 | 0.299 → 0.357 |
+| v1_s2 | 1 | 2.14 | 0.562 | **0.544** | [0.521, 0.568] | 0.237 → 0.202 | 0.285 → 0.262 |
+
+v1 test AUROC mean 0.540, spread across seeds 0.015; gain over v0 +0.036. Gain larger than the seed spread (pre-registered test of v1 over v0): **YES**.
+
+| Test benchmark | v0 | v1_s0 | v1_s1 | v1_s2 |
+| --- | ---: | ---: | ---: | ---: |
+| bbh | 0.468 | 0.487 | 0.484 | 0.504 |
+| humaneval | 0.504 | 0.533 | 0.511 | 0.525 |
+| math | 0.602 | 0.701 | 0.692 | 0.717 |
+
+**Kill gate, criterion 3 for v1** (every seed's 95% CI low > 0.55): lows = 0.521, 0.505, 0.521 → **FAIL**.
+<!-- END GENERATED: router-attempt3 -->
+
+<!-- BEGIN GENERATED: sweep-attempt3 -->
+Evaluation subset: 457 test prompts (bbh 324, humaneval 33, math 100).
+
+- **Always-frontier:** quality 97.8%, cost $7.58 per 1,000 prompts.
+- **Always-local:** quality 63.9% (65.3% of always-frontier), cost $0.08 per 1,000 prompts.
+
+**Operating point** — cheapest τ retaining ≥ 95% of always-frontier quality (chosen and reported on this subset: in-sample):
+
+| Router | τ | Kept local | Quality retained | Cost vs always-frontier |
+| --- | ---: | ---: | ---: | ---: |
+| heuristic | 0.58 | 12.7% | 95.5% | 90.7% |
+| random | 0.88 | 12.5% | 95.1% | 87.6% |
+| v0 | 0.56 | 10.1% | 96.0% | 91.2% |
+| v1_s0 | 0.84 | 15.3% | 95.1% | 85.7% |
+| v1_s1 | 0.84 | 14.4% | 95.1% | 87.9% |
+| v1_s2 | 0.53 | 16.0% | 96.4% | 88.5% |
+
+**Gate criteria 1-2** (pre-registered definitions):
+
+| Router | C1: dominates heuristic, 90-99% retention | C2: beats random at matched escalation | Cost - heuristic at 95% (per 1,000 prompts, 95% CI) |
+| --- | --- | --- | --- |
+| v0 | FAIL | FAIL | +0.04 [-0.47, +0.49] |
+| v1_s0 | PASS | PASS | -0.37 [-0.70, +0.15] |
+| v1_s1 | FAIL | FAIL | -0.21 [-0.69, +0.38] |
+| v1_s2 | FAIL | FAIL | -0.17 [-0.57, +0.32] |
+
+**Sensitivity to the local price** (criterion 1 / criterion 2 per router):
+
+| Local price x | v0 | v1_s0 | v1_s1 | v1_s2 |
+| --- | --- | --- | --- | --- |
+| 0.0 | F/F | P/P | F/F | F/F |
+| 1.0 | F/F | P/P | F/F | F/F |
+| 5.0 | F/F | P/P | F/F | F/F |
+
+Chart: `reports/figures/cost-quality-attempt3.png`.
+<!-- END GENERATED: sweep-attempt3 -->
+
+### Attempt 3 — verdict against the pre-registered tests
+
+![Cost-quality curve, attempt 3](figures/cost-quality-attempt3.png)
+
+| | v0 | v1 seed 0 | v1 seed 1 | v1 seed 2 |
+| --- | --- | --- | --- | --- |
+| C3: test-AUROC interval lower end above 0.55 | FAIL (0.480) | FAIL (0.521) | FAIL (0.505) | FAIL (0.521) |
+| C1: dominates the heuristic over 90–99% retention | FAIL | **PASS** | FAIL | FAIL |
+| C2: beats random at every escalation rate 10–90% | FAIL | **PASS** | FAIL | FAIL |
+| v1 beats v0 by more than the seed spread | — | yes (+0.036 vs spread 0.015) | | |
+
+**Verdict: the kill gate fails.** Criterion 3 fails for every router, and only one of three v1 seeds
+passes criteria 1 and 2 — the pre-registered rule needs every seed. The conclusions are identical at
+zero and five times the local price.
+
+**What attempt 3 shows.**
+
+- **The ceiling rose; the routers did not reach it.** With the 7B right on 63.9% of the subset, a
+  perfect router would cost 44.2% of always-frontier (the probe, whose labels are exactly the
+  subset's labels here). The best learned router costs 85.7–88.5% across seeds, the heuristic
+  90.7%, and random routing 87.6%. Almost all of the new headroom went unused.
+- **A better local model is harder to route.** Every router's test AUROC fell: heuristic
+  0.607 → 0.547, v1 mean 0.596 → 0.540, v0 0.564 → 0.505. The 7B's failures are much less tied to
+  visible signs of difficulty, so the prompt carries less signal about them. MATH is the exception:
+  v1 reaches 0.69–0.72 there, but BBH, the largest test benchmark, sits near 0.5.
+- **Calibration broke under shift.** The 7B is right on 89.8% of the validation benchmark (ARC) but
+  66.7% of the test benchmarks, so temperatures fitted on validation (0.52 for two seeds) made test
+  ECE worse (0.22 → 0.29–0.30). Fitting calibration on a benchmark unlike the test set is a real
+  hazard of the dataset-level split, and it is reported rather than refitted.
+- **The provenance gap reappears for v0** (row split 0.610 against 0.505 on unseen benchmarks):
+  with the 7B the training benchmarks' base rates differ more (60–95%), so recognising a benchmark
+  is again more useful than judging a prompt — even under balanced weights.
+
+**Where this leaves the thesis.** Across two local models, prompt-only routing on held-out
+benchmarks never beat a two-feature heuristic or random routing by a margin the intervals could
+separate from zero, and saved roughly a tenth of frontier cost at 95% quality. The savings available
+in principle are large (the oracle halves the cost with the 7B); a prompt-only classifier of this
+kind does not find them. Routers that look at the local model's answer (cascades, self-verification)
+are the natural next step, and are outside this project's scope.

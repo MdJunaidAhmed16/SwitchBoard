@@ -1,21 +1,23 @@
 """Threshold sweep → cost-quality curves and kill-gate criteria 1-2 (pre-registered in R2).
 
-    python -m switchboard.bench.sweep        (make sweep)
+    python -m switchboard.bench.sweep --attempt 2        (make sweep ATTEMPT=2)
 
 For every router and τ = 0.00 … 1.00, prompts with score ≥ τ go to the local model and the rest
 to the frontier. Quality is the fraction answered correctly (local label if routed local, frontier
 label if escalated); cost uses ``bench/cost.py``. Everything is pure arithmetic over cached
 answers: nothing is regenerated per threshold (08-evaluation, protocol step 5).
 
-Writes ``results/sweep-attempt2.json``, ``reports/figures/cost-quality-attempt2.png`` and the
-generated block in ``reports/R2-kill-gate.md``.
+Reads ``results/router-attempt<N>-scores.parquet`` and that attempt's local labels. Writes
+``results/sweep-attempt<N>.json``, ``reports/figures/cost-quality-attempt<N>.png`` and the
+``sweep-attempt<N>`` block in ``reports/R2-kill-gate.md``.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,6 +30,7 @@ from switchboard.config import Settings, get_settings
 from switchboard.labeling.generate import labels_path, model_slug
 from switchboard.labeling.summary import write_into_report
 from switchboard.log import configure_logging, get_logger
+from switchboard.router.attempts import ATTEMPTS
 
 log = get_logger(__name__)
 
@@ -36,7 +39,7 @@ RETENTION_LEVELS: tuple[float, ...] = tuple(np.round(np.arange(90, 100) / 100, 2
 ESCALATION_LEVELS: tuple[float, ...] = tuple(np.round(np.arange(1, 10) / 10, 1))
 QUALITY_FLOOR = 0.95
 SENSITIVITY_SCALES: tuple[float, ...] = (0.0, 1.0, 5.0)
-BEGIN, END = "<!-- BEGIN GENERATED: sweep-attempt2 -->", "<!-- END GENERATED: sweep-attempt2 -->"
+SWEEP_ATTEMPTS = (2, 3)  # the attempts with frontier answers and a v1 router
 
 
 @dataclass(frozen=True)
@@ -155,8 +158,9 @@ def bootstrap_cost_diff(
     return point, float(lo), float(hi)
 
 
-def load_eval_set(settings: Settings, local_scale: float = 1.0) -> EvalSet:
-    scores = pd.read_parquet(settings.results_dir / "router-attempt2-scores.parquet")
+def load_eval_set(settings: Settings, local_scale: float = 1.0, attempt: int = 2) -> EvalSet:
+    """``settings`` must already carry the attempt's local model (``Attempt.settings_for``)."""
+    scores = pd.read_parquet(settings.results_dir / f"router-attempt{attempt}-scores.parquet")
     local = pd.read_parquet(labels_path(settings))
     frontier_file = settings.labels_dir / f"{model_slug(settings.frontier_model_id)}.parquet"
     frontier = pd.read_parquet(frontier_file)
@@ -219,7 +223,9 @@ def _fmt_usd_per_1k(cost: float, n: int) -> str:
     return f"${1000 * cost / n:.2f}"
 
 
-def to_markdown(main: dict[str, Any], sensitivity: Mapping[str, dict[str, Any]]) -> str:
+def to_markdown(
+    main: dict[str, Any], sensitivity: Mapping[str, dict[str, Any]], attempt: int = 2
+) -> str:
     n = main["n_prompts"]
     af, al = main["always_frontier"], main["always_local"]
     lines = [
@@ -289,11 +295,11 @@ def to_markdown(main: dict[str, Any], sensitivity: Mapping[str, dict[str, Any]])
             if "criterion_1" in e
         ]
         lines.append(f"| {scale} | " + " | ".join(cells) + " |")
-    lines += ["", "Chart: `reports/figures/cost-quality-attempt2.png`."]
+    lines += ["", f"Chart: `reports/figures/cost-quality-attempt{attempt}.png`."]
     return "\n".join(lines)
 
 
-def plot(main: dict[str, Any], path: Any) -> None:
+def plot(main: dict[str, Any], path: Any, attempt: int = 2) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -331,7 +337,7 @@ def plot(main: dict[str, Any], path: Any) -> None:
     ax.axhline(95, color="lightgray", lw=1)
     ax.set_xlabel("Cost per 1,000 prompts (USD)")
     ax.set_ylabel("Quality retained (% of always-frontier)")
-    ax.set_title(f"Cost vs quality — attempt 2, {n}-prompt test subset")
+    ax.set_title(f"Cost vs quality — attempt {attempt}, {n}-prompt test subset")
     ax.legend(fontsize=8, loc="lower right")
     ax.grid(alpha=0.3)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -340,12 +346,15 @@ def plot(main: dict[str, Any], path: Any) -> None:
     plt.close(fig)
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Threshold sweep and gate criteria 1-2.")
+    parser.add_argument("--attempt", type=int, default=2, choices=SWEEP_ATTEMPTS)
+    attempt = parser.parse_args(argv).attempt
     configure_logging()
-    settings = get_settings()
-    main_result = analyse(load_eval_set(settings))
+    settings = ATTEMPTS[attempt].settings_for(get_settings())
+    main_result = analyse(load_eval_set(settings, attempt=attempt))
     sensitivity = {
-        str(s): analyse(load_eval_set(settings, s), with_bootstrap=False)
+        str(s): analyse(load_eval_set(settings, s, attempt), with_bootstrap=False)
         for s in SENSITIVITY_SCALES
     }
     out = {
@@ -369,12 +378,17 @@ def main() -> int:
             ],
         },
     }
-    (settings.results_dir / "sweep-attempt2.json").write_text(json.dumps(out, indent=2) + "\n")
-    plot(main_result, settings.reports_dir / "figures" / "cost-quality-attempt2.png")
+    stem = f"sweep-attempt{attempt}"
+    (settings.results_dir / f"{stem}.json").write_text(json.dumps(out, indent=2) + "\n")
+    figure = settings.reports_dir / "figures" / f"cost-quality-attempt{attempt}.png"
+    plot(main_result, figure, attempt)
     write_into_report(
-        settings.reports_dir / "R2-kill-gate.md", to_markdown(main_result, sensitivity), BEGIN, END
+        settings.reports_dir / "R2-kill-gate.md",
+        to_markdown(main_result, sensitivity, attempt),
+        f"<!-- BEGIN GENERATED: {stem} -->",
+        f"<!-- END GENERATED: {stem} -->",
     )
-    log.info("sweep_done", n_prompts=main_result["n_prompts"])
+    log.info("sweep_done", attempt=attempt, n_prompts=main_result["n_prompts"])
     return 0
 
 

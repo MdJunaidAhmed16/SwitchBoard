@@ -657,3 +657,36 @@ Newest entries at the bottom. Each entry: what was done, how it was verified, wh
   reported — OpenRouter had not finished recording the run when it was read. $3.47 equals tokens ×
   list price for the 457 answers.
 - **Verified:** 238 unit tests, ruff, strict mypy; `make readme` is idempotent.
+
+### 2026-10-08 — Attempt 3 started: a stronger local model (paused overnight)
+- **Feasibility probe:** Qwen2.5-7B-Instruct in its official 4-bit AWQ build runs on the 8 GB laptop
+  GPU (5.3 GiB of weights, float16, 16 sequences in flight; 32 leaves too little KV cache). On the
+  457 subset prompts it is right 63.9% of the time against the 1.5B's 40.0%, which lowers the oracle
+  router's cost from 65.9% to 44.2% of always-frontier.
+- **Pre-registered in R2 before any attempt-3 router exists:** attempt 3 is attempt 2 with only the
+  local model changed; the probe numbers are disclosed. `ATTEMPTS[3]` pins the model, and a unit test
+  checks it differs from attempt 2 in nothing else. The sweep now takes `--attempt`; attempt 2's
+  outputs reproduce byte for byte. `make vllm` takes `VLLM_DTYPE`.
+- **Relabel:** about 13,500 of 18,444 prompts generated (10 of 13 benchmarks labelled) at ~2 prompts
+  per second, then paused overnight. Every generation is cached, so resuming continues where it
+  stopped. Same single exclusion as before (`mbpp-0493`, prompt too long).
+- **Next:** finish the relabel (~30 min), `make train-attempt3`, `make sweep ATTEMPT=3`, verdict.
+
+### 2026-10-08 — Attempt 3 finished: the stronger model did not rescue routing
+- **Relabel completed** after the overnight pause (resumed from the cache): 18,445 labels from
+  Qwen2.5-7B-Instruct-AWQ, no failures, the same single over-long prompt excluded.
+- **Training and sweep:** `make train-attempt3` (three v1 seeds, ~15 minutes each) and
+  `make sweep ATTEMPT=3`, using the Claude answers already collected — no API spend.
+- **Result:** the 7B is right on 66.7% of test prompts (1.5B: 41.2%), but every router's AUROC fell
+  (heuristic 0.547, v1 mean 0.540, v0 0.505); criterion 3 fails for all. At 95% of frontier quality
+  the fine-tuned router costs 85.7–88.5% of always-frontier, random routing 87.6%, the heuristic
+  90.7%, while a perfect router would cost 44.2%. Only one v1 seed passes criteria 1–2. **The kill
+  gate fails for the third time.**
+- **Also found:** temperatures fitted on ARC (90% right for the 7B) made two seeds' test calibration
+  worse, because the test benchmarks are much harder for it (67%); and v0's provenance gap returned.
+- **Write-up:** R2 has the attempt-3 verdict and an updated status; the README now compares the two
+  local models side by side, generated from the results; the generator's gate rule was tightened to
+  the pre-registered one (every v1 seed must pass).
+- **Scope:** the owner stopped the project without GCP — no Terraform, cloud serving or demo
+  (Phases 4–6 recorded as not planned).
+- **Verified:** unit tests, ruff and strict mypy pass; attempt 2's sweep reproduces byte for byte.

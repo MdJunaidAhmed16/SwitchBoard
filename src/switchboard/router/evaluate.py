@@ -2,6 +2,7 @@
 
     python -m switchboard.router.evaluate --attempt 1     (make train-v0)
     python -m switchboard.router.evaluate --attempt 2     (make train-attempt2)
+    python -m switchboard.router.evaluate --attempt 3     (make train-attempt3)
 
 Attempt 1: heuristic, random and v0 trained on GSM8K, MMLU and MBPP. Attempt 2: the wider training
 mix with benchmark-balanced weights, plus v1 fine-tuned over three seeds (see ``attempts.py``).
@@ -141,6 +142,7 @@ def _prepare(data: RouterData, attempt: Attempt) -> RouterData:
 
 
 def evaluate(settings: Settings, attempt: Attempt = ATTEMPTS[1]) -> dict[str, Any]:
+    settings = attempt.settings_for(settings)
     seed = settings.seed
     data = _prepare(load_router_data(settings), attempt)
     encoder = FrozenEncoder.from_settings(settings)
@@ -248,6 +250,7 @@ def evaluate(settings: Settings, attempt: Attempt = ATTEMPTS[1]) -> dict[str, An
         "with_v1": attempt.with_v1,
     }
     results["setup"] = {
+        "local_model": [settings.local_model_id, settings.local_model_revision],
         "encoder": settings.router_encoder_id,
         "encoder_revision": settings.router_encoder_revision,
         "max_tokens": settings.router_max_tokens,
@@ -276,7 +279,9 @@ def _ci(v: list[float]) -> str:
 
 def to_markdown(r: dict[str, Any]) -> str:
     s = r["setup"]
-    lines = [
+    local = s.get("local_model")
+    lines = [f"Local model `{local[0]}` @ `{local[1][:10]}`", ""] if local else []
+    lines += [
         f"Encoder `{s['encoder']}` @ `{s['encoder_revision'][:10]}` (frozen for v0) · seed "
         f"{s['seed']} · split sizes train {s['split_sizes']['train']}, val "
         f"{s['split_sizes']['val']}, test {s['split_sizes']['test']}",
