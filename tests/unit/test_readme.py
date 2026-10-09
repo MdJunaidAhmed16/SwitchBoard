@@ -81,14 +81,14 @@ def test_headline_reports_v1_as_a_range_and_the_gate() -> None:
     # v1 seeds keep 8%, 9%, 10% local: reported as a range, never a cherry-picked seed.
     assert f"8.0%{EN_DASH}10.0% kept local" in text
     assert "11.4% kept local" in text
-    assert "**failed**" in text
+    assert "not met" in text
     assert "| no seed |" in text
 
 
 def test_headline_counts_seeds_significantly_cheaper_than_the_heuristic() -> None:
     text = headline([_attempt(ALL, ALL, ci=(-1.0, -0.1))])
     assert f"{len(V1_SEEDS)} of 3 seeds" in text
-    assert "| passed |" in text
+    assert "| yes |" in text
 
 
 def test_reliability_curve_matches_hand_computed_bins() -> None:
